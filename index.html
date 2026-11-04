@@ -1,0 +1,1764 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>DEC Floor Area Calculator | CSR Sustain</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: CSR Sustain tool shell — teal title block, tool strip styled as tabs, sheet card beside a stack of result cards */
+:root{
+  --primary-color:#2D6A6A; --primary-hover:#1F4A4A; --secondary-color:#7FE5C9; --primary-soft:#EAF3F1; --primary-line:#BBD5D0;
+  --light-bg:#F8FAFC; --white:#FFFFFF; --text-color:#1E293B; --text-2:#334155; --muted:#64748B; --disabled-grey:#94A3B8;
+  --border-color:#E2E8F0; --hover-bg:#F1F5F9; --field-bg:#FCFDFE; --board:#E8EDF2;
+  --exc:#B45309; --exc-soft:#FEF3E2; --cal:#A3127F; --success:#059669; --success-soft:#D1FAE5; --warn:#B45309; --warn-soft:#FFF7E6; --danger:#DC2626;
+  --font:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--light-bg);color:var(--text-color);font:14px/1.5 var(--font);overflow:hidden}
+#app{height:100%;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+.shell{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;background:var(--white);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.05);overflow:hidden;min-width:0}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--primary-color);outline-offset:1px}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* title block */
+.titleblock{background:var(--primary-color);color:var(--white);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:20px;border-bottom:4px solid var(--secondary-color);flex-wrap:wrap}
+.titleblock h1{margin:0 0 2px;font-size:20px;font-weight:600;letter-spacing:-.4px;text-wrap:balance}
+.titleblock .sub{margin:0;color:#E2E8F0;font-size:13.5px;opacity:.92}
+.site-logo{display:block;height:32px;width:auto;flex-shrink:0}
+
+/* tool strip (tab style) */
+.tb{display:flex;align-items:stretch;background:var(--hover-bg);border-bottom:1px solid var(--border-color);overflow-x:auto;scrollbar-width:thin;min-width:0}
+.grp{display:flex;flex:none;align-items:center;gap:2px;padding:0 8px;border-right:1px solid var(--border-color)}
+.grp:last-child{border-right:0}
+.tb button{display:inline-flex;align-items:center;gap:7px;height:48px;padding:0 12px;border:0;border-bottom:3px solid transparent;background:transparent;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;transition:background .2s ease,color .2s ease}
+.tb button:hover:not(:disabled){color:var(--primary-hover);background:#E8EEF2}
+.tb button:disabled{opacity:.4;cursor:default}
+.tb button[aria-pressed="true"]{color:var(--primary-color);border-bottom-color:var(--primary-color);background:var(--white)}
+.tb button.t-exc[aria-pressed="true"]{color:var(--exc);border-bottom-color:var(--exc)}
+.tb button.t-cal[aria-pressed="true"]{color:var(--cal);border-bottom-color:var(--cal)}
+.tb kbd{font:600 10px/1 var(--font);color:var(--disabled-grey);border:1px solid var(--border-color);background:var(--white);border-radius:4px;padding:2px 4px}
+.zoomv{font-size:12.5px;font-weight:600;min-width:52px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+.spacer{flex:1}
+.menu{position:fixed;z-index:30;min-width:250px;background:var(--white);border:1px solid var(--border-color);border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.14);padding:6px;display:grid;gap:2px}
+.menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:9px 12px;border:0;border-radius:8px;background:transparent;text-align:left;font-weight:600;color:var(--text-2)}
+.menu button:hover{background:var(--primary-soft);color:var(--primary-color)}
+.menu small{color:var(--muted);font-weight:400}
+
+/* main */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 312px;grid-template-rows:auto minmax(0,1fr);column-gap:16px;row-gap:0;min-height:0;padding:16px;background:var(--light-bg)}
+.floors{grid-column:1;grid-row:1;display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px;min-width:0;scrollbar-width:thin}
+.ftab{flex:none;display:grid;gap:2px;text-align:left;min-width:150px;max-width:240px;padding:8px 14px 9px;border:1px solid var(--border-color);border-radius:10px;background:var(--white);color:var(--text-2);transition:all .15s ease}
+.ftab:hover{border-color:#CBD5E1;background:var(--hover-bg)}
+.ftab .pn{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--disabled-grey)}
+.ftab .fn{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ftab .fs{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ftab .fs.ns{color:var(--warn)}
+.ftab{position:relative;cursor:pointer;padding-right:30px!important}
+.ftx{position:absolute;top:5px;right:6px;width:22px;height:22px;border:0;border-radius:6px;background:transparent;color:var(--disabled-grey);font-size:16px;line-height:1;opacity:0;transition:opacity .15s ease}
+.ftab:hover .ftx,.ftab:focus-within .ftx,.ftab.active .ftx{opacity:1}
+.ftx:hover{background:#FEF2F2;color:var(--danger)}
+.ftab.removed{opacity:.6;border-style:dashed;cursor:default;background:var(--light-bg)}
+.ftab.removed .mini{justify-self:start;margin-top:2px}
+.fremchip{flex:none;align-self:center;padding:6px 12px;border:1px dashed var(--border-color);border-radius:999px;background:transparent;font-size:12px;font-weight:600;color:var(--muted)}
+.fremchip:hover{border-color:var(--primary-line);color:var(--primary-color)}
+@media (hover:none){.ftx{opacity:1}}
+.ftab.active{border-color:var(--primary-color);background:var(--white);box-shadow:inset 0 -3px 0 var(--primary-color)}
+.ftab.active .fn{color:var(--primary-color)}
+.ghead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:6px 2px 0;font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--primary-color);cursor:pointer}
+.ghead span{font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);font-variant-numeric:tabular-nums}
+.fsum{margin:0;display:grid;gap:5px;padding-top:10px;border-top:1px solid var(--border-color)}
+.fsum div{display:flex;justify-content:space-between;gap:10px;font-size:12.5px}
+.fsum dt{color:var(--text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fsum dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ws{grid-column:1;grid-row:2;position:relative;min-height:0;min-width:0;background:var(--board);border:1px solid var(--border-color);border-radius:12px;overflow:hidden;touch-action:none}
+.ws canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.ws.drop::after{content:"Drop the drawing to open it";position:absolute;inset:10px;border:2px dashed var(--primary-color);border-radius:10px;display:grid;place-items:center;font-weight:600;color:var(--primary-color);background:rgba(234,243,241,.85)}
+.hud{position:absolute;left:50%;top:12px;transform:translateX(-50%);max-width:calc(100% - 24px);background:var(--white);border:1px solid var(--border-color);border-radius:999px;padding:6px 16px;font-size:12.5px;color:var(--text-2);box-shadow:0 4px 14px rgba(15,23,42,.08);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.ws.hud-low .hud{top:auto;bottom:12px}
+.hud b{font-weight:700;color:var(--primary-color)}
+.banner{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:calc(100% - 24px);background:var(--white);border:1px solid var(--primary-line);border-radius:10px;padding:8px 10px 8px 14px;font-size:12.5px;color:var(--text-2);box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.banner b{color:var(--primary-color)}
+.busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(232,237,242,.7);font-weight:600;color:var(--primary-color)}
+.busy span{background:var(--white);border:1px solid var(--border-color);padding:12px 18px;border-radius:10px}
+.empty{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px}
+.dropcard{max-width:480px;display:grid;gap:12px;justify-items:center;background:var(--white);border:2px dashed var(--primary-line);border-radius:14px;padding:32px 28px}
+.dropcard h2{margin:0;font-size:18px;font-weight:600;color:var(--primary-color)}
+.dropcard .big-i{width:40px;height:40px;color:var(--primary-color);stroke-width:1.4}
+.steps{list-style:none;counter-reset:s;margin:6px 0 0;padding:12px 0 0;border-top:1px solid var(--border-color);display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--muted)}
+.steps li{counter-increment:s;display:flex;align-items:center;gap:6px}
+.steps li::before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--primary-soft);color:var(--primary-color);font-weight:700;font-size:11px;display:grid;place-items:center}
+
+/* result cards */
+.side{grid-column:2;grid-row:1/3;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
+.sec{background:var(--white);border:1px solid var(--border-color);border-radius:12px;overflow:hidden;display:grid;gap:10px;padding:0 16px 16px;flex:none}
+.sec h2{margin:0 -16px 2px;padding:11px 16px;background:var(--primary-soft);color:var(--primary-color);border-bottom:1px solid var(--border-color);font-size:14.5px;font-weight:600}
+.sec.sum{padding-top:14px;border-color:var(--primary-line);box-shadow:inset 0 3px 0 var(--secondary-color)}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.big{display:flex;align-items:baseline;gap:6px;font-size:34px;font-weight:600;line-height:1.05;color:var(--primary-color);font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.big .u{font-size:16px;color:var(--muted);font-weight:500}
+.tot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0;padding:10px 0 0;border-top:1px solid var(--border-color)}
+.tot div{min-width:0}
+.tot dt{font-size:12px;color:var(--muted)}
+.tot dd{margin:0;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tot .ex dd{color:var(--exc)}
+.status{font-size:12.5px;display:flex;gap:7px;align-items:center;color:var(--text-2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--disabled-grey);flex:none}
+.status.ok .dot{background:var(--success)} .status.warn .dot{background:var(--warn)}
+.warns{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.warns li.iss{cursor:pointer;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start}
+.warns li.iss:hover{border-color:var(--warn)}
+.warns li.err{background:#FEF2F2;border-color:#FECACA}
+.warns .tg{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--warn);padding-top:1px;white-space:nowrap}
+.warns li.err .tg{color:var(--danger)}
+.mlist{margin:0;padding:0 20px 14px 38px;max-height:260px;overflow-y:auto;display:grid;gap:6px;font-size:13px;color:var(--text-2)}
+.warns li{font-size:12.5px;background:var(--warn-soft);border:1px solid #F5D9A8;border-radius:8px;padding:7px 10px;color:var(--text-2)}
+.chip{display:inline-flex;align-self:start;justify-self:start;gap:6px;align-items:center;font-size:12px;font-weight:600;padding:3px 11px;border-radius:999px;border:1px solid}
+.chip.ok{background:var(--success-soft);color:#047857;border-color:#A7F3D0} .chip.warn{background:var(--warn-soft);color:var(--warn);border-color:#F5D9A8}
+.kv{margin:0;display:grid;gap:6px}
+.kv div{display:flex;justify-content:space-between;gap:12px;font-size:12.5px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{padding:9px 16px;border-radius:8px;border:1px solid transparent;background:#E2E8F0;color:#475569;font-size:13.5px;font-weight:600;transition:all .2s ease}
+.btn:hover{background:#CBD5E1}
+.btn.primary{background:var(--primary-color);color:var(--white)}
+.btn.primary:hover{background:var(--primary-hover)}
+.btn.on{background:var(--primary-soft);color:var(--primary-color);border-color:var(--primary-line)}
+.form{display:grid;gap:9px;padding:12px;border:1px solid var(--border-color);border-radius:10px;background:var(--light-bg)}
+.form.cal{border-color:#E9B5DA;background:#FDF6FB}
+.form label{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--text-2)}
+.in{padding:9px 12px;border:1px solid var(--border-color);border-radius:8px;background:var(--field-bg);min-width:0;font-size:14px;font-variant-numeric:tabular-nums;transition:all .2s ease}
+.in:focus{border-color:var(--primary-color);background:var(--white);outline:none;box-shadow:0 0 0 3px rgba(45,106,106,.1)}
+.note{margin:0;font-size:12.5px;color:var(--muted)}
+.hintp{margin:0;font-size:13px;color:var(--muted)}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.item{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:4px 8px;align-items:center;padding:9px 10px 9px 12px;border:1px solid var(--border-color);border-radius:10px;background:var(--field-bg);cursor:pointer;transition:all .2s ease}
+.item:hover{background:var(--hover-bg);border-color:#CBD5E1}
+.item.sel{border-color:var(--primary-color);background:var(--primary-soft)}
+.item.exc.sel{border-color:var(--exc);background:var(--exc-soft)}
+.sw{width:10px;height:10px;border-radius:3px;background:var(--primary-color)}
+.item.exc .sw{background:repeating-linear-gradient(135deg,var(--exc) 0 2px,transparent 2px 4px);outline:1.5px solid var(--exc)}
+.nm{border:1px solid transparent;background:transparent;border-radius:6px;padding:3px 6px;font-weight:600;min-width:0;width:100%;color:var(--text-color)}
+.nm:hover{border-color:var(--border-color)} .nm:focus{border-color:var(--primary-color);background:var(--white);outline:none}
+.ar{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--primary-color)}
+.item.exc .ar{color:var(--exc)}
+.sub{grid-column:2/4;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;color:var(--muted);padding-left:6px}
+.sub .acts{display:flex;gap:4px}
+.mini{height:26px;padding:0 9px;border:1px solid var(--border-color);border-radius:999px;background:var(--white);font-size:12px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:4px;transition:all .15s ease}
+.mini:hover{border-color:#CBD5E1;background:var(--hover-bg)}
+.mini.kind-inc{color:var(--primary-color);border-color:var(--primary-line)} .mini.kind-exc{color:var(--exc);border-color:#F5D9A8} .mini.kind-bnd{color:var(--text-color);border-color:#94A3B8;border-style:dashed}
+.item.bnd .sw{background:transparent;outline:2px dashed var(--text-color);outline-offset:-1px}
+.item.bnd .ar{color:var(--muted)}
+.item.bnd.sel{border-color:var(--text-color);background:var(--hover-bg)}
+.tb button.t-bnd[aria-pressed="true"]{color:var(--text-color);border-bottom-color:var(--text-color)}
+.mini svg.i{width:14px;height:14px}
+.mini.act{background:var(--primary-color);border-color:var(--primary-color);color:var(--white)}
+.tb kbd{display:none}
+.tb button{padding:0 10px}
+@media (max-width:1760px){.tb button{padding:0 8px;gap:5px}.tb .lbl-opt{display:none}.grp{padding:0 5px}}
+@media (max-width:1400px){.tb button{padding:0 5px}.grp{padding:0 2px}}
+.opts{grid-column:2/4;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:6px}
+select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
+.item.unc .sw{background:rgba(109,40,217,.15);outline:1.5px dotted #6D28D9}
+.item.unc .ar{color:#6D28D9}
+.item.unc.sel{border-color:#6D28D9;background:#F5F3FF}
+.mini.kind-unc{color:#6D28D9;border-color:#C4B5FD}
+.tb button.t-unc[aria-pressed="true"]{color:#6D28D9;border-bottom-color:#6D28D9}
+.bsum{display:grid;gap:4px;padding-top:10px;border-top:1px solid var(--border-color)}
+.bsum h4{margin:6px 0 2px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.bsum .r{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--text-2)}
+.bsum .r b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bsum .r.tu{color:var(--primary-color);font-weight:600}
+.diff-ok{color:var(--success)} .diff-warn{color:var(--warn)}
+.bld{display:grid;gap:8px;padding:10px;border:1px solid var(--border-color);border-radius:10px;background:var(--field-bg)}
+.bld .hdr{display:flex;gap:6px;align-items:center}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g2 .fl{font-size:12px}
+.split{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.split th{font-size:11px;text-align:right;color:var(--muted);font-weight:600;padding:4px;border-bottom:1px solid var(--border-color);white-space:nowrap}
+.split td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--border-color);white-space:nowrap}
+.split th:first-child,.split td:first-child{text-align:left;white-space:normal}
+.split tfoot td{font-weight:700;color:var(--primary-color)}
+.tblwrap{overflow-x:auto}
+.sigpad{width:100%;height:110px;border:1px dashed var(--primary-line);border-radius:8px;background:var(--white);touch-action:none;cursor:crosshair;display:block}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--text-2);cursor:pointer}
+.chk input{width:16px;height:16px;accent-color:var(--primary-color);margin:2px 0 0;flex:none}
+.sumview{grid-column:1;grid-row:2;min-height:0;min-width:0;overflow:auto;background:var(--white);border:1px solid var(--border-color);border-radius:12px;padding:22px 26px 30px;display:flex;flex-direction:column;gap:22px}
+.sumview > *{flex:none}
+.sv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.sv-head h2{margin:0;font-size:20px;font-weight:600;color:var(--primary-color);letter-spacing:-.3px}
+.sv-head p{margin:3px 0 0;color:var(--muted);font-size:13px}
+.sv-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.sv-kpi{border:1px solid var(--border-color);border-radius:10px;padding:12px 14px;background:var(--field-bg)}
+.sv-kpi span{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.sv-kpi b{display:block;margin-top:4px;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text-color)}
+.sv-kpi.hl{border-color:var(--primary-line);background:var(--primary-soft)} .sv-kpi.hl b{color:var(--primary-color)}
+.sv-card{border:1px solid var(--border-color);border-radius:12px;overflow:hidden}
+.sv-card > h3{margin:0;padding:12px 18px;background:var(--primary-soft);color:var(--primary-color);border-bottom:1px solid var(--border-color);font-size:15px;font-weight:600;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sv-card > h3 small{font-size:12.5px;font-weight:500;color:var(--muted)}
+.sv-body{padding:14px 18px 18px;display:grid;gap:14px}
+.sv-body h4{margin:0;font-size:11.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.stbl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.stbl th{background:var(--primary-color);color:var(--white);font-weight:600;font-size:12px;text-align:left;padding:8px 10px;white-space:nowrap}
+.stbl td{padding:8px 10px;border-bottom:1px solid var(--border-color);color:var(--text-2)}
+.stbl .n{text-align:right;white-space:nowrap}
+.stbl tr.go{cursor:pointer} .stbl tr.go:hover td{background:var(--hover-bg)}
+.stbl tr.subt td{font-weight:600;color:var(--text-color);background:var(--light-bg)}
+.stbl tr.tufa td{font-weight:700;color:var(--primary-color);background:var(--primary-soft);border-bottom:0}
+.stbl td.void{color:var(--exc)} .stbl td.unc{color:#6D28D9}
+.sv-prev{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--text-2);padding:10px 12px;border-radius:8px;background:var(--light-bg)}
+.sv-prev b{font-variant-numeric:tabular-nums}
+.sv-sign{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:16px;align-items:center}
+.sv-sign img{max-width:100%;height:80px;object-fit:contain;border:1px dashed var(--primary-line);border-radius:8px;background:var(--white)}
+.sv-missing{height:80px;display:grid;place-items:center;border:1px dashed #F5D9A8;border-radius:8px;color:var(--warn);font-size:12.5px;background:var(--warn-soft)}
+.sv-empty{color:var(--muted);font-size:13.5px}
+@media (max-width:900px){.sumview{grid-row:2;height:auto;max-height:none}.sv-sign{grid-template-columns:1fr}}
+.ribbon{position:relative;z-index:20;display:flex;flex-direction:column;min-width:0;background:var(--white);border-bottom:1px solid var(--border-color)}
+.rtabs{display:flex;gap:2px;padding:6px 16px 0;background:var(--hover-bg);border-bottom:1px solid var(--border-color);overflow-x:auto}
+.rtab{position:relative;display:inline-flex;align-items:center;gap:6px;padding:8px 16px 9px;border:1px solid transparent;border-bottom:0;border-radius:8px 8px 0 0;background:transparent;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:-1px;white-space:nowrap}
+.rtab:hover{color:var(--primary-hover);background:#E8EEF2}
+.rtab[aria-selected="true"]{background:var(--white);color:var(--primary-color);border-color:var(--border-color);box-shadow:inset 0 3px 0 var(--primary-color)}
+.rdot{width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.rpanel{min-width:0}
+.rp-measure .tb{background:var(--white);border-bottom:0}
+.scalestrip{position:absolute;left:16px;right:16px;top:100%;margin-top:8px;background:var(--white);border:1px solid var(--border-color);border-top:3px solid var(--cal);border-radius:12px;box-shadow:0 18px 40px rgba(15,23,42,.16)}
+.scalestrip .rbody{max-height:min(46vh,420px)}
+.rpanel.ov{position:absolute;left:16px;right:16px;top:100%;margin-top:8px;background:var(--white);border:1px solid var(--border-color);border-top:3px solid var(--primary-color);border-radius:12px;box-shadow:0 18px 40px rgba(15,23,42,.18)}
+.rpanel.ov .rbody{max-height:min(62vh,560px);padding-right:44px}
+.ovclose{position:absolute;top:8px;right:10px;z-index:1;width:30px;height:30px;border:1px solid var(--border-color);border-radius:8px;background:var(--white);color:var(--muted);font-size:18px;line-height:1}
+.ovclose:hover{background:var(--hover-bg);color:var(--text-color)}
+.rbody{padding:12px 20px 14px;max-height:40vh;overflow:auto}
+.rcol{display:grid;gap:9px;align-content:start;min-width:0}
+.rg-cap{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.rscale{display:grid;grid-template-columns:minmax(240px,1fr) minmax(300px,1.3fr) minmax(200px,.8fr);gap:14px 28px}
+.rsite{display:grid;grid-template-columns:minmax(230px,280px) minmax(0,1fr);gap:14px 28px}
+.rsite .renergy{grid-column:1/-1;padding-top:12px;border-top:1px solid var(--border-color)}
+.renergy #energyBox{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,1.4fr);gap:8px 28px;align-items:start}
+.renergy #energyBox > .note{grid-column:1/-1;margin:0}
+@media (max-width:1200px){.renergy #energyBox{grid-template-columns:1fr}}
+.rsitebox{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.6fr);gap:14px 28px;min-width:0}
+.rsitebox .blds{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rsitebox .blds > .rg-cap,.rsitebox .blds > .row,.rsitebox .blds > .note{grid-column:1/-1}
+.rsign{display:grid;grid-template-columns:minmax(200px,1fr) minmax(220px,1fr) minmax(260px,330px) minmax(190px,230px);gap:14px 28px}
+.rdl .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.rsign .sigpad{height:96px}
+.schip{gap:7px!important;color:var(--warn)!important}
+.schip .dot{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+.schip.ok{color:var(--success)!important} .schip.ok .dot{background:var(--success)}
+.sidehead{display:flex;justify-content:space-between;align-items:center;padding:0 2px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);flex:none}
+.main.collapsed{grid-template-columns:minmax(0,1fr) 0;column-gap:0}
+.main.collapsed .side{display:none}
+.showside{white-space:nowrap;position:absolute;right:12px;top:12px;z-index:3;display:inline-flex;gap:6px;align-items:center;padding:7px 12px;border:1px solid var(--primary-line);border-radius:999px;background:var(--white);color:var(--primary-color);font-size:12.5px;font-weight:600;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.showside b{font-variant-numeric:tabular-nums}
+@media (max-width:1200px){.rscale,.rsign{grid-template-columns:1fr 1fr}.rsitebox,.rsite{grid-template-columns:1fr}}
+@media (max-width:900px){.rbody{max-height:70vh}.rscale,.rsign{grid-template-columns:1fr}}
+.disc{margin:0;padding:12px 14px;font-size:12px;color:var(--muted);background:var(--white);border:1px solid var(--border-color);border-radius:12px;flex:none}
+.fl{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--text-2)}
+.disc b{color:var(--text-color);font-weight:600}
+
+/* status bar (action-bar style) */
+.sbar{display:flex;gap:16px;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);min-width:0;padding:10px 20px;background:var(--white);border-top:1px solid var(--border-color)}
+.sbar #hint{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbar #coord{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600;color:var(--text-2)}
+
+.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:16px}
+.dlg{background:var(--white);border-radius:14px;max-width:440px;width:100%;display:grid;gap:0;box-shadow:0 20px 50px rgba(15,23,42,.25);overflow:hidden}
+.dlg h3{margin:0;font-size:16px;font-weight:600;background:var(--primary-color);color:var(--white);padding:14px 20px;border-bottom:4px solid var(--secondary-color)}
+.dlg p{margin:0;color:var(--text-2);padding:16px 20px}
+.dlg .row{justify-content:flex-end;padding:12px 20px;background:var(--light-bg);border-top:1px solid var(--border-color)}
+.toast{position:fixed;z-index:60;left:50%;bottom:calc(56px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--primary-color);color:var(--white);padding:10px 16px;border-radius:10px;font-size:13.5px;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(15,23,42,.2);border-left:4px solid var(--secondary-color)}
+
+@media (max-width:900px){
+  html,body{height:auto;overflow:auto}
+  #app,.shell{height:auto}
+  .shell{grid-template-rows:auto auto auto auto}
+  .titleblock{padding:18px 20px}
+  .site-logo{height:30px}
+  .main{grid-template-columns:minmax(0,1fr);padding:12px}
+  .ws{height:64vh}
+  .side{grid-column:1;grid-row:3;margin-top:16px}
+  .side{overflow:visible}
+  .tb .lbl{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 6.5h6l2 2h10V19H3z"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3.5h11l3 3V20.5H5z M8.5 3.5v5h7v-5 M8.5 20.5v-6h7v6"/></symbol>
+  <symbol id="i-load" viewBox="0 0 24 24"><path d="M4 19.5h16 M12 15.5V4 M7.5 8.5 12 4l4.5 4.5"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M4 19.5h16 M12 4v11.5 M7.5 11 12 15.5 16.5 11"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M6 3.5 18.5 11l-5.5 1.6-2.4 5.4z"/></symbol>
+  <symbol id="i-poly" viewBox="0 0 24 24"><path d="M5 18.5 6.5 5.5 17.5 8 19.5 16.5 11 19.5z"/><circle cx="5" cy="18.5" r="1.4"/><circle cx="6.5" cy="5.5" r="1.4"/><circle cx="17.5" cy="8" r="1.4"/><circle cx="19.5" cy="16.5" r="1.4"/></symbol>
+  <symbol id="i-excl" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15z M4.5 12 12 4.5 M4.5 19.5l15-15 M12 19.5l7.5-7.5"/></symbol>
+  <symbol id="i-calib" viewBox="0 0 24 24"><path d="M3 16.5 16.5 3l4.5 4.5L7.5 21z M7 12.5l2 2 M10 9.5l2 2 M13 6.5l2 2"/></symbol>
+  <symbol id="i-measure" viewBox="0 0 24 24"><path d="M5 19 19 5 M3.5 15.5l5 5 M15.5 3.5l5 5"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 13.5 4 8.5l5-5 M4 8.5h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 13.5l5-5-5-5 M20 8.5H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol>
+  <symbol id="i-zin" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.5-4.5 M10.5 7.5v6 M7.5 10.5h6"/></symbol>
+  <symbol id="i-zout" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.5-4.5 M7.5 10.5h6"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5"/></symbol>
+  <symbol id="i-rot" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3 M19.5 4v4.5H15"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15 M9.5 7V4.5h5V7 M6.5 7l1 13h9l1-13"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 4.5V10H10 M4.8 10A7.5 7.5 0 1 1 6.5 17"/></symbol>
+  <symbol id="i-bnd" viewBox="0 0 24 24"><path d="M4 4h4 M11 4h3 M17 4h3v3 M20 10v4 M20 17v3h-3 M14 20h-3 M8 20H4v-3 M4 14v-4 M4 7V4"/></symbol>
+  <symbol id="i-unc" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15z"/><circle cx="12" cy="12" r="4"/><path d="M12 8v8 M8 12h8"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><path d="M4 5h16v14H4z M4 10h16 M4 14.5h16 M10 10v9"/></symbol>
+  <symbol id="i-swap" viewBox="0 0 24 24"><path d="M5 8.5h13l-3.5-3.5 M19 15.5H6l3.5 3.5"/></symbol>
+</svg>
+
+<div id="app"><div class="shell">
+  <header class="titleblock">
+    <div class="header-text">
+      <h1>DEC Floor Area Calculator</h1>
+      <p class="sub">Floor plan measurement · Non-Domestic Energy Assessment</p>
+    </div>
+    <img class="site-logo" src="data:image/png;base64,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" alt="CSR Sustain" width="800" height="204">
+  </header>
+  <div class="ribbon">
+    <div class="rtabs" role="tablist" aria-label="Tool sections">
+      <button class="rtab" role="tab" data-rt="measure" aria-selected="true">Floor Plan<span class="rdot" id="scaleDot" hidden title="Scale not set for this floor"></span></button>
+      <button class="rtab" role="tab" data-rt="site" aria-selected="false">Site &amp; floors</button>
+      <button class="rtab" role="tab" data-rt="sign" aria-selected="false">Sign-off<span class="rdot" id="signDot" hidden></span></button>
+    </div>
+    <div class="rpanel rp-measure" data-rp="measure">
+  <nav class="tb" role="toolbar" aria-label="Floor area tools">
+    <div class="grp">
+      <button id="bOpen" title="Open a floor plan (PDF, PNG, JPG)"><svg class="i"><use href="#i-open"/></svg><span class="lbl">Open</span></button>
+      <button id="bLoad" title="Open a saved project (.json)"><svg class="i"><use href="#i-load"/></svg><span class="lbl lbl-opt">Open project</span></button>
+      <button id="bExport" title="Export report, image or CSV" aria-haspopup="menu"><svg class="i"><use href="#i-export"/></svg><span class="lbl">Export</span></button>
+    </div>
+    <div class="grp">
+      <button data-tool="select" title="Select and edit (V)"><svg class="i"><use href="#i-select"/></svg><span class="lbl">Select</span> <kbd>V</kbd></button>
+      <button data-tool="poly" title="Trace an included area (P)"><svg class="i"><use href="#i-poly"/></svg><span class="lbl">Area</span> <kbd>P</kbd></button>
+      <button data-tool="excl" class="t-exc" title="Trace an exclusion such as a courtyard or void (X)"><svg class="i"><use href="#i-excl"/></svg><span class="lbl">Exclusion</span> <kbd>X</kbd></button>
+      <button data-tool="unc" class="t-unc" title="Trace an unconditioned area such as plant or a bin store (U). Recorded separately, not added or subtracted."><svg class="i"><use href="#i-unc"/></svg><span class="lbl">Unconditioned</span> <kbd>U</kbd></button>
+      <button data-tool="bnd" class="t-bnd" title="Trace the building boundary used to check other areas (B). Not counted in totals."><svg class="i"><use href="#i-bnd"/></svg><span class="lbl lbl-opt">Boundary</span> <kbd>B</kbd></button>
+      <button data-tool="calib" class="t-cal" title="Two-point scale calibration (C)"><svg class="i"><use href="#i-calib"/></svg><span class="lbl lbl-opt">Calibrate</span> <kbd>C</kbd></button>
+      <button data-tool="measure" title="Check a dimension (M)"><svg class="i"><use href="#i-measure"/></svg><span class="lbl lbl-opt">Check dim.</span> <kbd>M</kbd></button>
+    </div>
+    <div class="grp">
+      <button id="bSummary" aria-pressed="false" title="Show the area summary: benchmarks, voids, TUFA, previous DEC, unconditioned areas, energy split and sign-off (S)"><svg class="i"><use href="#i-table"/></svg><span class="lbl">Summary</span></button>
+    </div>
+    <div class="grp">
+      <button id="bUndo" title="Undo (Ctrl+Z)"><svg class="i"><use href="#i-undo"/></svg></button>
+      <button id="bRedo" title="Redo (Ctrl+Y)"><svg class="i"><use href="#i-redo"/></svg></button>
+      <button id="bDel" title="Delete the selected point or area (Delete)"><svg class="i"><use href="#i-trash"/></svg></button>
+    </div>
+    <div class="grp">
+      <button id="bZout" title="Zoom out (−)"><svg class="i"><use href="#i-zout"/></svg></button>
+      <span class="zoomv" id="zoomV">100%</span>
+      <button id="bZin" title="Zoom in (+)"><svg class="i"><use href="#i-zin"/></svg></button>
+      <button id="bFit" title="Fit drawing to screen (F)"><svg class="i"><use href="#i-fit"/></svg></button>
+      <button id="bRot" title="Rotate view 90° (R)"><svg class="i"><use href="#i-rot"/></svg></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="grp">
+      <button id="schip" class="schip" title="Open the Scale tab"><span class="dot"></span><span id="schipT">Scale not set</span></button>
+    </div>
+    <div class="grp">
+      <button id="bReset" title="Clear all areas and scale settings"><svg class="i"><use href="#i-reset"/></svg><span class="lbl lbl-opt">Reset</span></button>
+    </div>
+  </nav>
+      <div id="scaleStrip" class="scalestrip" hidden><button class="ovclose" type="button" id="scClose" title="Close (Esc). Reopen with the scale badge." aria-label="Close scale panel">×</button><div id="scaleBox" class="rbody rscale" style="padding-right:48px"></div></div>
+    </div>
+    <div class="rpanel ov" data-rp="site" hidden><button class="ovclose" type="button" data-close title="Close (Esc)" aria-label="Close">×</button><div class="rbody rsite">
+      <div class="rcol"><div class="rg-cap">Current floor</div><div id="drawInfo" style="display:grid;gap:8px"></div></div>
+      <div id="siteBox" class="rsitebox"></div>
+      <div class="rcol renergy" id="energySec" hidden><div class="rg-cap">Energy split by floor area</div><div id="energyBox" style="display:grid;gap:10px"></div></div>
+    </div></div>
+    <div class="rpanel ov" data-rp="sign" id="signSec" hidden><button class="ovclose" type="button" data-close title="Close (Esc)" aria-label="Close">×</button><div class="rbody rsign">
+      <div class="rcol"><div class="rg-cap">Report details</div>
+        <label class="fl">Site name<input class="in txt" id="mBuilding" placeholder="e.g. Corby East Midlands International Pool"></label>
+        <label class="fl">Job reference<input class="in txt" id="mRef" placeholder="e.g. DEC-2026-114"></label></div>
+      <div class="rcol"><div class="rg-cap">Assessor</div>
+        <label class="fl">Assessor<input class="in txt" id="mAssessor" placeholder="Name and accreditation number"></label>
+        <label class="fl">Date signed<input class="in" type="date" id="mDate"></label>
+        <label class="chk"><input type="checkbox" id="mConfirm"><span>I confirm I measured these areas and checked them against the drawing dimensions.</span></label></div>
+      <div class="rcol"><div class="rg-cap">Signature</div><canvas class="sigpad" id="sigPad" aria-label="Signature pad: sign with mouse, pen or finger"></canvas>
+        <span class="row" style="justify-content:space-between"><span class="note">Sign with mouse, pen or finger</span><button class="mini" id="sigClear" type="button">Clear</button></span></div>
+      <div class="rcol rdl"><div class="rg-cap">Download</div>
+        <button class="btn primary" type="button" data-dl="pdf"><svg class="i"><use href="#i-export"/></svg>PDF report</button>
+        <button class="btn" type="button" data-dl="docx"><svg class="i"><use href="#i-export"/></svg>Word report (.docx)</button>
+        <p class="note">Both include the summary, every traced area, the annotated drawings and this sign-off.</p></div>
+    </div></div>
+  </div>
+
+  <main class="main">
+    <div class="floors" id="floors" role="tablist" aria-label="Floors" hidden></div>
+    <section class="sumview" id="sumView" hidden aria-label="Area summary"></section>
+    <section class="ws" id="ws" aria-label="Drawing workspace">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hud" hidden></div>
+      <button class="showside" id="bShowSide" type="button" hidden title="Show the results panel">‹ Results <b id="showSideV"></b></button>
+      
+      <div class="empty" id="empty" hidden><div class="dropcard">
+        <svg class="i big-i" aria-hidden="true"><use href="#i-open"/></svg>
+        <h2>Upload a floor plan</h2>
+        <p class="hintp">PDF, PNG or JPG. Click below or drop the file anywhere in this area. Multi-page PDFs are supported.</p>
+        <button class="btn primary" id="bOpen3">Choose drawing</button>
+        <ol class="steps"><li>Upload the drawing</li><li>Set the scale</li><li>Trace the floor area</li></ol>
+      </div></div>
+      <div class="busy" id="busy" hidden><span id="busyT">Working…</span></div>
+    </section>
+
+    <aside class="side" aria-label="Measurements">
+      <div class="sidehead"><span>Results</span><button class="mini" type="button" id="bHideSide" title="Hide the results panel to give the drawing more room">Hide ›</button></div>
+      <section class="sec sum" aria-live="polite">
+        <div class="eyebrow">Measured floor area · net</div>
+        <div class="big"><span id="netV">—</span><span class="u">m²</span></div>
+        <dl class="tot">
+          <div><dt>Included</dt><dd id="incV">—</dd></div>
+          <div class="ex"><dt>Voids</dt><dd id="excV">—</dd></div>
+          <div><dt>Unconditioned</dt><dd id="cntV" style="color:#6D28D9">—</dd></div>
+        </dl>
+        <dl class="fsum" id="fsum" hidden></dl>
+        <div class="bsum" id="bsum" hidden></div>
+        <div class="status" id="status"><span class="dot"></span><span id="statusT"></span></div>
+        <ul class="warns" id="warns"></ul>
+      </section>
+      <section class="sec"><h2>Areas</h2><ul class="list" id="list"></ul><p class="hintp" id="listEmpty">No areas yet. On the Floor Plan tab choose <b>Area</b> (P) and click around the floor outline.</p></section>
+      <p class="disc"><b>Manual tracing.</b> Areas come from boundaries you trace by hand and depend on the scale you set. The assessor must check every result against the drawing's dimensions before using it in a DEC.</p>
+    </aside>
+  </main>
+
+  <footer class="sbar"><span id="hint"></span><span id="coord"></span></footer>
+</div></div>
+
+<div class="menu" id="expMenu" role="menu" hidden>
+  <button role="menuitem" data-exp="pdf">PDF report<small>Plan with traced boundaries and results table</small></button>
+  <button role="menuitem" data-exp="docx">Word report (.docx)<small>Same content as the PDF, editable in Word</small></button>
+  <button role="menuitem" data-exp="png">Annotated image (PNG)<small>Current page with boundaries and labels</small></button>
+  <button role="menuitem" data-exp="csv">Measurement breakdown (CSV)<small>Opens in Excel</small></button>
+  <button role="menuitem" data-exp="split" data-split>Split PDF by floor (ZIP)<small>One PDF per page, named by floor</small></button>
+  <button role="menuitem" data-exp="splitone" data-split>This floor as a separate PDF<small>Only the page you are viewing</small></button>
+</div>
+<div class="modal" id="modal" hidden><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="mT"><h3 id="mT"></h3><p id="mX"></p><ul class="mlist" id="mL" hidden></ul><div class="row"><button class="btn" id="mNo">Cancel</button><button class="btn primary" id="mYes">OK</button></div></div></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<datalist id="benchSug"><option value="General office"></option><option value="High street agency"></option><option value="General retail"></option><option value="Large non-food shop"></option><option value="Small food store"></option><option value="Large food store"></option><option value="Restaurant"></option><option value="Bar, pub or licensed club"></option><option value="Hotel"></option><option value="Cultural activities"></option><option value="Entertainment halls"></option><option value="Swimming pool centre"></option><option value="Fitness and health centre"></option><option value="Dry sports and leisure facility"></option><option value="Covered car park"></option><option value="Public buildings with light usage"></option><option value="Schools and seasonal public buildings"></option><option value="University campus"></option><option value="Clinic"></option><option value="Hospital - clinical and research"></option><option value="Long term residential"></option><option value="General accommodation"></option><option value="Emergency services"></option><option value="Laboratory or operating theatre"></option><option value="Public waiting or circulation"></option><option value="Terminal"></option><option value="Workshop"></option><option value="Storage facility"></option><option value="Cold storage"></option></datalist>
+<datalist id="uncSug"><option value="Plant room"></option><option value="Dry plant"></option><option value="Wet plant"></option><option value="Bin store"></option><option value="Store"></option><option value="Substation"></option><option value="Undercroft"></option></datalist>
+<input type="file" id="fileIn" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" hidden>
+<input type="file" id="projIn" accept=".json,application/json" hidden>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const cv = $('#cv'), ctx = cv.getContext('2d'), ws = $('#ws');
+const COL = { inc: '#2D6A6A', exc: '#B45309', unc: '#6D28D9', bnd: '#1E293B', cal: '#A3127F', meas: '#0369A1', bad: '#DC2626' };
+const KIND_OF = { poly: 'inc', excl: 'exc', unc: 'unc', bnd: 'bnd' }, DRAW_TOOLS = ['poly', 'excl', 'unc', 'bnd'];
+const KIND_NAME = { inc: 'Included', exc: 'Void / excluded', unc: 'Unconditioned', bnd: 'Boundary' };
+const PREV_TOL = 0.05;   // flag a change of more than 5 % against the previous DEC area
+const CS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+const PT_M = 0.0254 / 72;           // one PDF point in metres at sheet size
+const APP_ID = 'floor-area-measure';
+
+let W = 0, H = 0, dpr = 1;
+const defSite = () => ({ bench: ['', '', '', ''], buildings: [{ id: 1, name: '', prev: '', manual: '' }], nextB: 2, energy: { elec: '', gas: '', other: '', otherName: '' } });
+const S = { file: null, pages: [], polys: [], nextId: 1, meta: { building: '', ref: '', assessor: '' }, lenUnit: 'm', isSample: false, site: defSite(), sign: { date: '', sig: null, confirm: false } };
+let lastBench = null;
+let cur = 0;
+const V = { z: 1, r: 0, x: 0, y: 0 };
+let pdfDoc = null, pdfPage = null, base = null, baseScale = 1, imgBmp = null, detail = null;
+let tool = 'select', sel = null, selV = -1, draft = null, calibPts = [], measurePts = [];
+let hover = null, hoverPlace = null, ptr = null, spaceDown = false, dirty = false, manualOpen = false, lastDistUnit = 'm';
+const undoS = [], redoS = [];
+let boardCol = '#E8EDF2';
+
+/* ---------- formatting ---------- */
+const nf = (v, d) => v.toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fA = v => v == null ? '—' : nf(v, 2);
+const fL = m => S.lenUnit === 'mm' ? nf(m * 1000, 0) + ' mm' : nf(m, 3) + ' m';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const parseNum = s => parseFloat(String(s).replace(/[\s,]/g, ''));
+const unitName = () => S.file && S.file.type === 'pdf' ? 'pt' : 'px';
+
+/* ---------- view transform (document units -> screen CSS px) ---------- */
+function toS(x, y) { const [c, s] = CS[V.r]; return { x: V.z * (c * x - s * y) + V.x, y: V.z * (s * x + c * y) + V.y }; }
+function toD(sx, sy) { const [c, s] = CS[V.r]; const dx = (sx - V.x) / V.z, dy = (sy - V.y) / V.z; return [c * dx + s * dy, -s * dx + c * dy]; }
+const mapS = (x, y) => { const p = toS(x, y); return [p.x, p.y]; };
+
+/* ---------- geometry (all in document units; metres applied at the end) ---------- */
+function sArea(p) { // shoelace, translated to the first vertex to limit floating-point cancellation
+  if (p.length < 3) return 0; const ox = p[0][0], oy = p[0][1]; let a = 0;
+  for (let i = 0; i < p.length; i++) { const q = p[i], r = p[(i + 1) % p.length]; a += (q[0] - ox) * (r[1] - oy) - (r[0] - ox) * (q[1] - oy); }
+  return a / 2;
+}
+function perim(p, closed = true) { let s = 0; const n = p.length; for (let i = 0; i < (closed ? n : n - 1); i++) { const q = p[i], r = p[(i + 1) % n]; s += Math.hypot(r[0] - q[0], r[1] - q[1]); } return s; }
+function pip(pt, p) { let inn = false; for (let i = 0, j = p.length - 1; i < p.length; j = i++) { const [xi, yi] = p[i], [xj, yj] = p[j]; if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) inn = !inn; } return inn; }
+function centroid(p) {
+  const a = sArea(p); if (Math.abs(a) < 1e-9) { let x = 0, y = 0; p.forEach(q => { x += q[0]; y += q[1]; }); return [x / p.length, y / p.length]; }
+  const ox = p[0][0], oy = p[0][1]; let cx = 0, cy = 0;
+  for (let i = 0; i < p.length; i++) { const x1 = p[i][0] - ox, y1 = p[i][1] - oy, x2 = p[(i + 1) % p.length][0] - ox, y2 = p[(i + 1) % p.length][1] - oy, f = x1 * y2 - x2 * y1; cx += (x1 + x2) * f; cy += (y1 + y2) * f; }
+  return [ox + cx / (6 * a), oy + cy / (6 * a)];
+}
+function labelPt(p) {
+  const c = centroid(p); if (pip(c, p)) return c;
+  const xs = []; for (let i = 0; i < p.length; i++) { const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length]; if ((y1 > c[1]) !== (y2 > c[1])) xs.push(x1 + (c[1] - y1) * (x2 - x1) / (y2 - y1)); }
+  xs.sort((a, b) => a - b); let best = null, w = -1; for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > w) { w = xs[i + 1] - xs[i]; best = [(xs[i] + xs[i + 1]) / 2, c[1]]; }
+  return best || c;
+}
+function segX(a, b, c, d) { const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]); const d1 = o(c, d, a), d2 = o(c, d, b), d3 = o(a, b, c), d4 = o(a, b, d); return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)); }
+function selfX(p) { const n = p.length; for (let i = 0; i < n; i++) for (let j = i + 2; j < n; j++) { if (i === 0 && j === n - 1) continue; if (segX(p[i], p[(i + 1) % n], p[j], p[(j + 1) % n])) return true; } return false; }
+const live = i => !!S.pages[i] && !S.pages[i].removed;
+const livePages = () => S.pages.map((_, i) => i).filter(live);
+const lbl = i => (S.pages[i] && S.pages[i].label) || `Page ${i + 1}`;
+function floorTot(i) { let inc = 0, exc = 0, n = 0, miss = 0; for (const p of S.polys) { if (p.page !== i || p.kind === 'bnd' || p.kind === 'unc') continue; n++; const a = areaM(p); if (a == null) { miss++; continue; } if (p.kind === 'exc') exc += a; else inc += a; } return { inc, exc, net: inc - exc, n, miss }; }
+const FLOOR_RE = /\b(?:lower[\s-]ground|upper[\s-]ground|ground|basement|lower|upper|mezzanine|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|roof|\d{1,2}(?:st|nd|rd|th))\s+floor\b|\blevel\s+(?:-?\d{1,2}|[a-z]\b)|\b(?:basement|mezzanine|roof)\s+(?:plan|level)\b/i;
+const titleCase = s => s.toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+async function guessLabel(page) {
+  try {
+    const items = (await page.getTextContent()).items.filter(t => t.str && t.str.trim()); let best = null, bh = 0;
+    for (const t of items) { const m = t.str.match(FLOOR_RE); if (m) { const h = Math.hypot(t.transform[2], t.transform[3]); if (h > bh) { bh = h; best = m[0]; } } }
+    if (!best) { const m = items.map(t => t.str).join(' ').replace(/\s+/g, ' ').match(FLOOR_RE); if (m) best = m[0]; }
+    return best ? titleCase(best.replace(/\s+/g, ' ').trim()) : null;
+  } catch (e) { return null; }
+}
+const mpuOf = i => (S.pages[i] && S.pages[i].calib) ? S.pages[i].calib.mpu : null;
+const areaM = p => { const m = mpuOf(p.page); return m ? Math.abs(sArea(p.pts)) * m * m : null; };
+const perimM = p => { const m = mpuOf(p.page); return m ? perim(p.pts) * m : null; };
+
+function totals() {
+  let inc = 0, exc = 0, unc = 0, nInc = 0, nExc = 0, nUnc = 0, missing = 0;
+  for (const p of S.polys) { if (p.kind === 'bnd') continue; const a = areaM(p); if (a == null) { missing++; continue; } if (p.kind === 'unc') { unc += a; nUnc++; } else if (p.kind === 'exc') { exc += a; nExc++; } else { inc += a; nInc++; } }
+  return { inc, exc, unc, net: inc - exc, nInc, nExc, nUnc, missing, any: nInc + nExc > 0 };
+}
+/* ---------- benchmarks, buildings and energy split ---------- */
+const numOrNull = v => { const n = parseNum(v); return isFinite(n) ? n : null; };
+const benchIdx = () => { const ix = []; S.site.bench.forEach((b, i) => { if (b && b.trim()) ix.push(i); }); return ix.length ? ix : [0]; };
+const benchName = i => ((S.site.bench[i] || '').trim()) || `Benchmark ${i + 1}`;
+const bldIdOf = i => (S.pages[i] && S.site.buildings.some(b => b.id === S.pages[i].bld)) ? S.pages[i].bld : S.site.buildings[0].id;
+const bldName = b => (b.name || '').trim() || (S.site.buildings.length === 1 ? ((S.meta.building || '').trim() || 'Building') : `Building ${S.site.buildings.indexOf(b) + 1}`);
+function bldSummary(b) {
+  const pages = livePages().filter(i => bldIdOf(i) === b.id);
+  const rows = [], unc = [], byBench = {}; let tufa = 0, uncTot = 0, missing = 0;
+  for (const i of pages) {
+    const acc = {};
+    for (const p of S.polys) {
+      if (p.page !== i || p.kind === 'bnd') continue; const a = areaM(p); if (a == null) { missing++; continue; }
+      if (p.kind === 'unc') { unc.push({ page: i, name: p.name, area: a }); uncTot += a; continue; }
+      const k = p.bench || 0; acc[k] = acc[k] || { gross: 0, void: 0 }; if (p.kind === 'exc') acc[k].void += a; else acc[k].gross += a;
+    }
+    Object.keys(acc).map(Number).sort((x, y) => x - y).forEach(k => { const r = acc[k], net = r.gross - r.void; rows.push({ page: i, bench: k, gross: r.gross, void: r.void, net }); byBench[k] = (byBench[k] || 0) + net; tufa += net; });
+  }
+  const prev = numOrNull(b.prev), manual = numOrNull(b.manual), measured = rows.length > 0;
+  return { b, pages, rows, unc, byBench, tufa, uncTot, missing, measured, prev, manual, splitArea: measured ? tufa : (manual || 0), diff: prev && measured ? (tufa - prev) / prev : null };
+}
+function energySplit() {
+  const sums = S.site.buildings.map(bldSummary), total = sums.reduce((t, x) => t + x.splitArea, 0), e = S.site.energy;
+  const E = { elec: numOrNull(e.elec), gas: numOrNull(e.gas), other: numOrNull(e.other) };
+  return { total, E, rows: sums.map(x => { const sh = total ? x.splitArea / total : 0; return Object.assign({}, x, { share: sh, elec: E.elec != null ? E.elec * sh : null, gas: E.gas != null ? E.gas * sh : null, other: E.other != null ? E.other * sh : null }); }) };
+}
+function signIssue() {
+  const miss = []; if (!(S.meta.assessor || '').trim()) miss.push('assessor name'); if (!S.sign.date) miss.push('date'); if (!S.sign.sig) miss.push('signature'); if (!S.sign.confirm) miss.push('confirmation tick');
+  return miss.length ? { type: 'sign', sev: 'warn', page: null, ids: [], msg: `Not signed and dated yet: add the ${miss.join(', ')} in Report details & sign-off.` } : null;
+}
+function warnings() {
+  const w = [], multi = S.pages.length > 1;
+  S.pages.forEach((pg, i) => { if (pg.removed) return; const ps = S.polys.filter(p => p.page === i); if (!pg.calib && ps.length) w.push({ type: 'scale', sev: 'err', page: i, ids: [ps[0].id], msg: `${multi ? lbl(i) + ' (page ' + (i + 1) + ')' : 'This drawing'} has traced areas but no scale, so they are not in the totals.` }); });
+  for (const p of S.polys) if (selfX(p.pts)) w.push({ type: 'selfx', sev: 'err', page: p.page, ids: [p.id], msg: `“${p.name}” crosses itself. Its area is unreliable; move the points so the outline does not overlap.` });
+  if (!CLIP) for (const p of S.polys.filter(q => q.kind === 'exc')) {
+    const inside = S.polys.some(q => q.kind === 'inc' && q.page === p.page && p.pts.every(v => pip(v, q.pts) || q.pts.some(u => Math.hypot(u[0] - v[0], u[1] - v[1]) < 1e-6)));
+    if (!inside) w.push({ type: 'excout', sev: 'warn', page: p.page, ids: [p.id], msg: `Exclusion “${p.name}” is not fully inside an included area. Check it is not being subtracted by mistake.` });
+  }
+  w.push(...analyse().issues);
+  S.site.buildings.forEach(b => { const sm = bldSummary(b); if (sm.diff != null && Math.abs(sm.diff) > PREV_TOL) w.push({ type: 'prev', sev: 'warn', page: sm.pages[0] != null ? sm.pages[0] : null, ids: [], msg: `${bldName(b)}: measured ${fA(sm.tufa)} m² is ${nf(Math.abs(sm.diff) * 100, 1)} % ${sm.diff > 0 ? 'above' : 'below'} the previous DEC area (${fA(sm.prev)} m²). Record the reason in your audit file.` });
+    if (S.site.buildings.length > 1 && !sm.measured && !sm.manual) w.push({ type: 'bld', sev: 'warn', page: null, ids: [], msg: `${bldName(b)} has no floors assigned and no area entered, so it gets no share of the site energy.` }); });
+  S.pages.forEach((pg, i) => { const c = pg.calib; if (!pg.removed && c && c.method === 'two') { const pr = calPrecision(c); if (pr > 0.005) w.push({ type: 'calib', sev: 'warn', page: i, ids: [], msg: `Calibration${multi ? ' on ' + lbl(i) : ''} may be imprecise (±${nf(pr * 100, 2)} %). Recalibrate on a longer known dimension, zoomed in.` }); } });
+  return w;
+}
+/* ---------- overlap, gap, duplicate and boundary checks ---------- */
+const TOL = { overlap: 0.01, gapMin: 0.002, gapMax: 0.25, dupIoU: 0.9, outside: 0.01 };   // m², m, m, ratio, m²
+const ISSUE_TAG = { prev: 'Previous DEC', bld: 'Building', uncout: 'Unconditioned', sign: 'Sign-off', overlap: 'Overlap', dup: 'Duplicate', gap: 'Gap', outside: 'Outside boundary', excout: 'Exclusion', selfx: 'Outline', scale: 'Scale', calib: 'Scale' };
+let CLIP = null, clipReady = null, geoKey = '', geoRes = { issues: [], marks: [] };
+function ensureClip() { if (!clipReady) { clipReady = loadScript('https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js').then(() => { CLIP = window.polygonClipping || null; geoKey = ''; if (S.file) refresh(); }); clipReady.catch(() => { clipReady = null; }); } return clipReady; }
+const ringOf = p => { const r = p.pts.map(q => [q[0], q[1]]); r.push([p.pts[0][0], p.pts[0][1]]); return [r]; };
+function mpArea(mp) { let a = 0; for (const poly of mp || []) poly.forEach((r, k) => { a += (k ? -1 : 1) * Math.abs(sArea(r)); }); return a; }
+function segDistD(v, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy; let t = L ? ((v[0] - a[0]) * dx + (v[1] - a[1]) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(v[0] - (a[0] + t * dx), v[1] - (a[1] + t * dy)); }
+function analyse() {
+  const key = CLIP ? JSON.stringify([S.polys.map(p => [p.id, p.page, p.kind, p.name, p.pts]), S.pages.map(p => p.calib && p.calib.mpu), S.lenUnit]) : 'none';
+  if (key === geoKey) return geoRes; geoKey = key;
+  const issues = [], marks = []; geoRes = { issues, marks };
+  if (!CLIP) return geoRes;
+  const safe = (fn, ...a) => { try { return fn(...a); } catch (e) { return null; } };
+  S.pages.forEach((pg, pi) => {
+    if (pg.removed) return;
+    const mpu = pg.calib && pg.calib.mpu; if (!mpu) return;
+    const m2 = mpu * mpu, where = S.pages.length > 1 ? ` on ${lbl(pi)}` : '';
+    const L = S.polys.filter(p => p.page === pi && p.pts.length >= 3 && !selfX(p.pts));
+    const inc = L.filter(p => p.kind === 'inc'), exc = L.filter(p => p.kind === 'exc'), bnd = L.filter(p => p.kind === 'bnd');
+    const A = p => Math.abs(sArea(p.pts)) * m2;
+    const gapCheck = (a, b) => {
+      let worst = 0, at = null;
+      const test = (P, Q) => { for (const v of P.pts) { if (pip(v, Q.pts)) continue; let d = Infinity; for (let i = 0; i < Q.pts.length; i++) d = Math.min(d, segDistD(v, Q.pts[i], Q.pts[(i + 1) % Q.pts.length])); const dm = d * mpu; if (dm > TOL.gapMin && dm < TOL.gapMax && dm > worst) { worst = dm; at = v; } } };
+      test(a, b); test(b, a);
+      if (at) { issues.push({ type: 'gap', sev: 'warn', page: pi, ids: [a.id, b.id], msg: `Gap of up to ${fL(worst)} between “${a.name}” and “${b.name}”${where}. If they share a wall line, drag the points together so they snap; if the gap is a wall you meant to leave out, ignore this.` }); marks.push({ page: pi, pt: at, d: worst }); }
+    };
+    const pairCheck = (arr, twice) => { for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+      const a = arr[i], b = arr[j], mp = safe(CLIP.intersection, ringOf(a), ringOf(b)) || [], ov = mpArea(mp) * m2;
+      if (ov < TOL.overlap) { gapCheck(a, b); continue; }
+      const iou = ov / (A(a) + A(b) - ov);
+      if (iou >= TOL.dupIoU) issues.push({ type: 'dup', sev: 'err', page: pi, ids: [a.id, b.id], msg: `“${a.name}” and “${b.name}” look like the same area measured twice${where} (${nf(iou * 100, 0)} % identical). Delete one of them.` });
+      else issues.push({ type: 'overlap', sev: 'err', page: pi, ids: [a.id, b.id], msg: `“${a.name}” and “${b.name}” overlap by ${fA(ov)} m²${where}, so that area is ${twice}.` });
+      marks.push({ page: pi, mp });
+    } };
+    pairCheck(inc, 'counted twice in the total'); pairCheck(exc, 'subtracted twice');
+    for (const a of inc) for (const b of exc) { const ov = mpArea(safe(CLIP.intersection, ringOf(a), ringOf(b)) || []) * m2; if (ov / (A(a) + A(b) - ov) >= TOL.dupIoU) issues.push({ type: 'dup', sev: 'err', page: pi, ids: [a.id, b.id], msg: `Included “${a.name}” and exclusion “${b.name}” cover the same area${where}, so they cancel each other out.` }); }
+    if (exc.length) {
+      const U = inc.length ? safe(CLIP.union, ...inc.map(ringOf)) : [];
+      if (U) for (const e of exc) { const out = inc.length ? (safe(CLIP.difference, ringOf(e), ...U) || []) : [ringOf(e)], oa = mpArea(out) * m2; if (oa >= TOL.overlap && oa > A(e) * 0.001) { issues.push({ type: 'excout', sev: 'warn', page: pi, ids: [e.id], msg: `${fA(oa)} m² of exclusion “${e.name}” lies outside every included area${where}, so it reduces the total without matching any measured floor.` }); marks.push({ page: pi, mp: out }); } }
+    }
+    const unc = L.filter(p => p.kind === 'unc');
+    if (unc.length) {
+      const U = inc.length ? safe(CLIP.union, ...inc.map(ringOf)) : [];
+      if (U) for (const u of unc) { const out = inc.length ? (safe(CLIP.difference, ringOf(u), ...U) || []) : [ringOf(u)], oa = mpArea(out) * m2; if (oa >= TOL.overlap && oa > A(u) * 0.001) { issues.push({ type: 'uncout', sev: 'warn', page: pi, ids: [u.id], msg: `${fA(oa)} m² of unconditioned area “${u.name}” is outside every included area${where}. Unconditioned areas are only recorded, so that part is not in the floor area. Trace the floor around it too.` }); marks.push({ page: pi, mp: out }); } }
+    }
+    if (bnd.length) {
+      const B = bnd.length === 1 ? [ringOf(bnd[0])] : safe(CLIP.union, ...bnd.map(ringOf));
+      if (B) for (const p of inc.concat(exc)) { const out = safe(CLIP.difference, ringOf(p), ...B) || [], oa = mpArea(out) * m2; if (oa >= TOL.outside && oa > A(p) * 0.001) { issues.push({ type: 'outside', sev: 'err', page: pi, ids: [p.id], msg: `“${p.name}” extends ${fA(oa)} m² outside the building boundary${where}.` }); marks.push({ page: pi, mp: out }); } }
+    }
+  });
+  return geoRes;
+}
+function calPrecision(c) { const len = Math.hypot(c.p2[0] - c.p1[0], c.p2[1] - c.p1[1]); return Math.SQRT2 / ((c.zoom || 1) * len); }
+function equivScale(c) {
+  if (!S.file) return null;
+  if (S.file.type === 'pdf') return { n: c.mpu / PT_M, note: 'at sheet size' };
+  const dpi = c.dpi || S.file.dpi; if (dpi) return { n: c.mpu * dpi / 0.0254, note: `at ${nf(dpi, 0)} dpi` };
+  return null;
+}
+function sheetName(wmm, hmm) {
+  const a = Math.min(wmm, hmm), b = Math.max(wmm, hmm);
+  const iso = [['A0', 841, 1189], ['A1', 594, 841], ['A2', 420, 594], ['A3', 297, 420], ['A4', 210, 297]];
+  for (const [n, x, y] of iso) if (Math.abs(a - x) < 3 && Math.abs(b - y) < 3) return n + (wmm > hmm ? ' landscape' : ' portrait');
+  return null;
+}
+
+/* ---------- undo / redo ---------- */
+const snap = () => JSON.stringify({ calibs: S.pages.map(p => p.calib), removed: S.pages.map(p => !!p.removed), polys: S.polys, nextId: S.nextId });
+function commit(before) { undoS.push(before); if (undoS.length > 300) undoS.shift(); redoS.length = 0; dirty = true; }
+function mutate(fn) { const b = snap(); fn(); commit(b); refresh(); }
+function restore(str) { const o = JSON.parse(str); o.calibs.forEach((c, i) => { if (S.pages[i]) S.pages[i].calib = c; }); (o.removed || []).forEach((r, i) => { if (S.pages[i]) S.pages[i].removed = r; }); if (!live(cur)) { const lp = livePages(); if (lp.length) setTimeout(() => showPage(lp[0]), 0); } S.polys = o.polys; S.nextId = o.nextId; if (!S.polys.some(p => p.id === sel)) sel = null; selV = -1; dirty = true; refresh(); }
+function undo() { if (draft && draft.pts.length) { draft.pts.pop(); if (!draft.pts.length) draft = null; requestDraw(); return; } if (calibPts.length) { calibPts.pop(); renderScale(); requestDraw(); return; } if (!undoS.length) return; redoS.push(snap()); restore(undoS.pop()); }
+function redo() { if (!redoS.length) return; undoS.push(snap()); restore(redoS.pop()); }
+
+/* ---------- loading ---------- */
+function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('could not load ' + src.split('/').pop() + ' — check your connection')); document.head.appendChild(s); }); }
+let pdfReady = null, pdfLibReady = null;
+function ensurePdf() {
+  if (!pdfReady) { const b = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/'; pdfReady = loadScript(b + 'pdf.min.js').then(() => loadScript(b + 'pdf.worker.min.js')).then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = b + 'pdf.worker.min.js'; }); pdfReady.catch(() => { pdfReady = null; }); }
+  return pdfReady;
+}
+function ensureJsPdf() { if (!pdfLibReady) { pdfLibReady = loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'); pdfLibReady.catch(() => { pdfLibReady = null; }); } return pdfLibReady; }
+
+function detectDpi(buf) {
+  try {
+    const u = new Uint8Array(buf), dv = new DataView(buf);
+    if (u[0] === 0x89 && u[1] === 0x50) { let o = 8; while (o + 12 <= u.length) { const len = dv.getUint32(o), t = String.fromCharCode(u[o + 4], u[o + 5], u[o + 6], u[o + 7]); if (t === 'pHYs') { const ppm = dv.getUint32(o + 8), unit = u[o + 16]; return unit === 1 && ppm > 0 ? ppm * 0.0254 : null; } if (t === 'IDAT' || t === 'IEND') break; o += 12 + len; } return null; }
+    if (u[0] === 0xFF && u[1] === 0xD8) { let o = 2; while (o + 14 < u.length && u[o] === 0xFF) { const m = u[o + 1], len = dv.getUint16(o + 2); if (m === 0xE0 && String.fromCharCode(u[o + 4], u[o + 5], u[o + 6], u[o + 7]) === 'JFIF') { const un = u[o + 11], xd = dv.getUint16(o + 12); if (xd > 0 && un === 1) return xd; if (xd > 0 && un === 2) return xd * 2.54; return null; } if (m === 0xDA) break; o += 2 + len; } }
+  } catch (e) { /* unreadable header: no DPI */ }
+  return null;
+}
+
+async function commitDrawing(f) {
+  ensureClip();
+  setBusy('Opening ' + f.name + '…');
+  try {
+    let doc = null, bmp = null, pages;
+    if (f.type === 'pdf') {
+      await ensurePdf();
+      doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(f.buf.slice(0)) }).promise;
+      pages = [];
+      for (let i = 1; i <= doc.numPages; i++) { if (doc.numPages > 1) setBusy(`Reading page ${i} of ${doc.numPages}…`); const pgo = await doc.getPage(i), vp = pgo.getViewport({ scale: 1 }); pages.push({ w: vp.width, h: vp.height, calib: null, rot: 0, label: doc.numPages > 1 ? await guessLabel(pgo) : null }); }
+      const seen = {}; pages.forEach((pg, i) => { if (!pg.label) return; const k = pg.label.toLowerCase(); if (seen[k] != null) pg.label += ` (p.${i + 1})`; else seen[k] = i; });
+      f.dpi = null;
+    } else {
+      bmp = await createImageBitmap(new Blob([f.buf], { type: f.mime }));
+      pages = [{ w: bmp.width, h: bmp.height, calib: null, rot: 0 }];
+      f.dpi = detectDpi(f.buf);
+    }
+    if (pdfDoc && pdfDoc !== doc) { try { pdfDoc.destroy(); } catch (e) {} }
+    pdfDoc = doc; imgBmp = bmp; pdfPage = null; S.pages = pages; S.file = f;
+  } finally { setBusy(null); }
+}
+
+async function showPage(i, keepView) {
+  scaleClosed = false;
+  if (sumOpen) setSumView(false);
+  cur = i; sel = null; selV = -1; draft = null; calibPts = []; measurePts = []; detail = null; detailSeq++; base = null;
+  const pg = S.pages[i]; V.r = pg.rot || 0;
+  if (S.file.type === 'pdf') {
+    setBusy(`Rendering page ${i + 1}…`);
+    try {
+      pdfPage = await pdfDoc.getPage(i + 1);
+      const s = Math.min(4, 8000 / Math.max(pg.w, pg.h), Math.sqrt(2.4e7 / (pg.w * pg.h)));
+      const vp = pdfPage.getViewport({ scale: s }), c = document.createElement('canvas');
+      c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+      await pdfPage.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      base = c; baseScale = s;
+    } finally { setBusy(null); }
+  }
+  refresh(); if (!keepView) fit(); scheduleDetail();
+  const at = document.querySelector('.ftab.active'); if (at && at.scrollIntoView) at.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+async function openFile(f) {
+  if (!f) return;
+  const isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+  const isImg = /\.(png|jpe?g)$/i.test(f.name) || /^image\/(png|jpeg)$/.test(f.type);
+  if (!isPdf && !isImg) { toast('Use a PDF, PNG or JPG file.'); return; }
+  if (dirty && !S.isSample && S.polys.length && !(await ask('Open a new drawing?', 'Your current areas will be cleared. Save the project first if you need to keep them.', 'Open drawing'))) return;
+  const buf = await f.arrayBuffer();
+  const mime = isPdf ? 'application/pdf' : (/png/i.test(f.type) || /\.png$/i.test(f.name) ? 'image/png' : 'image/jpeg');
+  try { await commitDrawing({ name: f.name, type: isPdf ? 'pdf' : 'image', mime, buf }); }
+  catch (e) { console.error(e); toast('Could not open ' + f.name + ': ' + (e.message || e)); return; }
+  S.polys = []; S.nextId = 1; S.isSample = false; undoS.length = 0; redoS.length = 0; dirty = false; manualOpen = false; lastBench = null;
+  S.site = defSite(); S.sign.date = ''; S.sign.confirm = false; syncMeta();
+  await showPage(0);
+  setTool('calib');
+  const named = S.pages.filter(p => p.label).length;
+  toast(S.pages.length > 1 ? `${S.pages.length} pages, each shown as its own floor tab. ${named ? `Named ${named} from the drawing titles; check them on the Site & floors tab.` : 'Rename them on the Site & floors tab.'} Set the scale for each floor, and remove any pages you don't need with × on the tab.` : 'Drawing open. Set the scale first: click both ends of a known dimension.');
+}
+
+/* ---------- canvas sizing and drawing ---------- */
+function resize() {
+  const r = ws.getBoundingClientRect(); if (!r.width || !r.height) return; dpr = window.devicePixelRatio || 1;
+  const fitted = W > 0; const cx = W / 2, cy = H / 2, keep = fitted && S.file ? toD(cx, cy) : null;
+  W = r.width; H = r.height; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  if (keep) { centreOn(keep); } else if (S.file) fit();
+  detail = null; requestDraw(); scheduleDetail();
+}
+function readTokens() { boardCol = getComputedStyle(document.documentElement).getPropertyValue('--board').trim() || '#d9dee6'; requestDraw(); }
+let rafId = 0; function requestDraw() { if (!rafId) rafId = requestAnimationFrame(draw); }
+
+function draw() {
+  rafId = 0;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = boardCol; ctx.fillRect(0, 0, cv.width, cv.height);
+  $('#empty').hidden = !!S.file;
+  if (!S.file) return;
+  const pg = S.pages[cur], [c, s] = CS[V.r];
+  ctx.setTransform(V.z * c * dpr, V.z * s * dpr, -V.z * s * dpr, V.z * c * dpr, V.x * dpr, V.y * dpr);
+  ctx.save(); ctx.shadowColor = 'rgba(15,23,42,.16)'; ctx.shadowBlur = 14 * dpr; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pg.w, pg.h); ctx.restore();
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  if (S.file.type === 'pdf') { if (base) ctx.drawImage(base, 0, 0, pg.w, pg.h); }
+  else if (imgBmp) ctx.drawImage(imgBmp, 0, 0, pg.w, pg.h);
+  if (detail && detail.pg === cur && detail.z === V.z && detail.r === V.r) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(detail.c, Math.round((V.x - detail.x) * dpr), Math.round((V.y - detail.y) * dpr)); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawOverlays(ctx, cur, mapS, 1, true);
+  drawLive();
+  updateHud();
+}
+
+const hatchCache = {};
+function hatch(g, k) {
+  const key = k.toFixed(2);
+  if (!hatchCache[key]) { const n = Math.max(6, Math.round(9 * k)), c = document.createElement('canvas'); c.width = c.height = n; const h = c.getContext('2d'); h.strokeStyle = 'rgba(180,83,9,.55)'; h.lineWidth = Math.max(1, k); h.beginPath(); h.moveTo(-1, n + 1); h.lineTo(n + 1, -1); h.moveTo(-n / 2, n / 2); h.lineTo(n / 2, -n / 2); h.moveTo(n / 2, n * 1.5); h.lineTo(n * 1.5, n / 2); h.stroke(); hatchCache[key] = c; }
+  return g.createPattern(hatchCache[key], 'repeat');
+}
+function pathOf(g, sc, close) { g.beginPath(); sc.forEach((q, i) => i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])); if (close) g.closePath(); }
+function tag(g, x, y, lines, col, k, sub) {
+  g.save(); g.font = `600 ${12 * k}px "Segoe UI",system-ui,Arial,sans-serif`;
+  const f2 = `500 ${13 * k}px "Segoe UI",system-ui,Arial,sans-serif`;
+  const w1 = g.measureText(lines[0]).width; g.font = f2; const w2 = lines[1] ? g.measureText(lines[1]).width : 0;
+  const w = Math.max(w1, w2) + 14 * k, h = (lines[1] ? 38 : 22) * k, x0 = x - w / 2, y0 = y - h / 2;
+  g.fillStyle = 'rgba(255,255,255,.93)'; g.strokeStyle = col; g.lineWidth = (sub ? 1 : 1.2) * k;
+  g.beginPath(); if (g.roundRect) g.roundRect(x0, y0, w, h, 4 * k); else g.rect(x0, y0, w, h); g.fill(); g.stroke();
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = sub ? '#334155' : col;
+  g.font = `600 ${12 * k}px "Segoe UI",system-ui,Arial,sans-serif`; g.fillText(lines[0], x, y0 + 11 * k);
+  if (lines[1]) { g.font = f2; g.fillStyle = '#1E293B'; g.fillText(lines[1], x, y0 + 27 * k); }
+  g.restore();
+}
+function pill(g, x, y, text, col, k) {
+  g.save(); g.font = `500 ${11.5 * k}px "Segoe UI",system-ui,Arial,sans-serif`; const w = g.measureText(text).width + 10 * k, h = 18 * k;
+  g.fillStyle = 'rgba(255,255,255,.92)'; g.strokeStyle = col; g.lineWidth = k; g.beginPath(); if (g.roundRect) g.roundRect(x - w / 2, y - h / 2, w, h, 3 * k); else g.rect(x - w / 2, y - h / 2, w, h); g.fill(); g.stroke();
+  g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, x, y + .5 * k); g.restore();
+}
+
+function drawOverlays(g, pi, map, k, ui) {
+  const list = S.polys.filter(p => p.page === pi), mpu = mpuOf(pi);
+  for (const p of list) {
+    const sc = p.pts.map(q => map(q[0], q[1])); pathOf(g, sc, true);
+    if (p.kind === 'bnd') { /* reference outline only */ }
+    else if (p.kind === 'unc') { g.fillStyle = 'rgba(109,40,217,.10)'; g.fill(); }
+    else if (p.kind === 'exc') { g.fillStyle = 'rgba(255,255,255,.35)'; g.fill(); g.fillStyle = hatch(g, k); g.fill(); }
+    else { g.fillStyle = ui && p.id === sel ? 'rgba(45,106,106,.18)' : 'rgba(45,106,106,.11)'; g.fill(); }
+    g.lineJoin = 'round'; g.lineWidth = (ui && p.id === sel ? 2.6 : 1.9) * k; g.strokeStyle = COL[p.kind];
+    g.setLineDash(p.kind === 'exc' ? [8 * k, 4 * k] : p.kind === 'unc' ? [2.5 * k, 3 * k] : p.kind === 'bnd' ? [14 * k, 4 * k, 3 * k, 4 * k] : []); if (p.kind === 'bnd') g.lineWidth = (ui && p.id === sel ? 3.2 : 2.6) * k; g.stroke(); g.setLineDash([]);
+  }
+  if (ui) for (const mk of analyse().marks) {
+    if (mk.page !== pi) continue;
+    if (mk.mp) { g.save(); g.beginPath(); for (const poly of mk.mp) for (const r of poly) { r.forEach((q, i) => { const [x, y] = map(q[0], q[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); } g.fillStyle = 'rgba(220,38,38,.30)'; g.fill('evenodd'); g.strokeStyle = COL.bad; g.lineWidth = 1.6; g.setLineDash([4, 3]); g.stroke(); g.restore(); }
+    else if (mk.pt) { const [x, y] = map(mk.pt[0], mk.pt[1]); g.beginPath(); g.arc(x, y, 11, 0, Math.PI * 2); g.strokeStyle = COL.bad; g.lineWidth = 2.2; g.stroke(); pill(g, x, y - 22, 'gap ' + fL(mk.d), COL.bad, 1); }
+  }
+  // calibration reference line
+  const cal = S.pages[pi] && S.pages[pi].calib;
+  if (cal && cal.method === 'two' && (!ui || tool === 'calib')) {
+    const a = map(...cal.p1), b = map(...cal.p2); g.save(); g.strokeStyle = COL.cal; g.lineWidth = 1.6 * k; g.setLineDash([5 * k, 3 * k]); g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); g.setLineDash([]); [a, b].forEach(q => cross(g, q, COL.cal, 6 * k, 1.6 * k)); g.restore();
+    pill(g, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - 14 * k, `ref ${nf(cal.dist, cal.unit === 'mm' ? 0 : 3)} ${cal.unit}`, COL.cal, k);
+  }
+  if (ui && sel != null) {
+    const p = list.find(q => q.id === sel);
+    if (p) {
+      const sc = p.pts.map(q => map(q[0], q[1]));
+      if (mpu) for (let i = 0; i < sc.length; i++) { const a = sc[i], b = sc[(i + 1) % sc.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 70) continue; const q = p.pts[i], r = p.pts[(i + 1) % p.pts.length]; const nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L; const off = 13 + Math.abs(nx) * 34; pill(g, (a[0] + b[0]) / 2 + nx * off, (a[1] + b[1]) / 2 + ny * off, fL(Math.hypot(r[0] - q[0], r[1] - q[1]) * mpu), '#334155', 1); }
+      for (let i = 0; i < sc.length; i++) { const a = sc[i], b = sc[(i + 1) % sc.length]; if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 26) continue; g.beginPath(); g.arc((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, 4, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 1.3; g.strokeStyle = COL[p.kind]; g.stroke(); }
+      sc.forEach((q, i) => { g.beginPath(); g.rect(q[0] - 4.5, q[1] - 4.5, 9, 9); g.fillStyle = i === selV ? COL[p.kind] : '#fff'; g.fill(); g.lineWidth = 1.6; g.strokeStyle = COL[p.kind]; g.stroke(); });
+    }
+  }
+  for (const p of list) {
+    const c = labelPt(p.pts), [x, y] = map(c[0], c[1]), a = areaM(p);
+    tag(g, x, y, [p.name, a == null ? 'scale not set' : (p.kind === 'exc' ? '− ' : '') + fA(a) + ' m²' + (p.kind === 'bnd' ? ' (boundary)' : p.kind === 'unc' ? ' (uncond.)' : '')], COL[p.kind], k, p.kind === 'bnd');
+  }
+}
+function cross(g, q, col, r, lw) { g.save(); g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(q[0] - r, q[1]); g.lineTo(q[0] + r, q[1]); g.moveTo(q[0], q[1] - r); g.lineTo(q[0], q[1] + r); g.stroke(); g.restore(); }
+
+function drawLive() {
+  const g = ctx, mpu = mpuOf(cur);
+  if (draft && draft.pts.length) {
+    const col = COL[draft.kind], sc = draft.pts.map(q => mapS(...q));
+    const end = hoverPlace ? mapS(...hoverPlace.pt) : null;
+    if (sc.length >= 2 || end) { pathOf(g, end ? sc.concat([end]) : sc, false); g.fillStyle = draft.kind === 'exc' ? 'rgba(180,83,9,.07)' : 'rgba(45,106,106,.08)'; if (sc.length >= 2) g.fill(); }
+    pathOf(g, sc, false); g.strokeStyle = col; g.lineWidth = 2; g.stroke();
+    if (end) { g.setLineDash([6, 4]); g.beginPath(); g.moveTo(...sc[sc.length - 1]); g.lineTo(...end); g.stroke(); g.setLineDash([]);
+      if (mpu) { const q = draft.pts[draft.pts.length - 1], r = hoverPlace.pt; pill(g, (sc[sc.length - 1][0] + end[0]) / 2, (sc[sc.length - 1][1] + end[1]) / 2 - 14, fL(Math.hypot(r[0] - q[0], r[1] - q[1]) * mpu), col, 1); } }
+    sc.forEach((q, i) => { g.beginPath(); if (i === 0) { g.arc(q[0], q[1], closeHover() ? 8 : 5.5, 0, Math.PI * 2); } else g.rect(q[0] - 3.5, q[1] - 3.5, 7, 7); g.fillStyle = '#fff'; g.fill(); g.lineWidth = 1.6; g.strokeStyle = col; g.stroke(); });
+  }
+  if (calibPts.length) {
+    const sc = calibPts.map(q => mapS(...q.pt)); const end = calibPts.length === 1 && hoverPlace ? mapS(...hoverPlace.pt) : null;
+    g.strokeStyle = COL.cal; g.lineWidth = 2; g.beginPath(); g.moveTo(...sc[0]); g.lineTo(...(sc[1] || end || sc[0])); g.stroke();
+    sc.forEach(q => cross(g, q, COL.cal, 9, 1.6)); if (end) cross(g, end, COL.cal, 9, 1.2);
+    if (sc.length === 2) { const a = calibPts[0].pt, b = calibPts[1].pt; pill(g, (sc[0][0] + sc[1][0]) / 2, (sc[0][1] + sc[1][1]) / 2 - 14, `${nf(Math.hypot(b[0] - a[0], b[1] - a[1]), 2)} ${unitName()} — enter real length`, COL.cal, 1); }
+  }
+  if (measurePts.length) {
+    const sc = measurePts.map(q => mapS(...q)); const end = measurePts.length === 1 && hoverPlace ? mapS(...hoverPlace.pt) : null; const b2 = sc[1] || end;
+    g.strokeStyle = COL.meas; g.lineWidth = 2; g.beginPath(); g.moveTo(...sc[0]); if (b2) g.lineTo(...b2); g.stroke(); sc.forEach(q => cross(g, q, COL.meas, 8, 1.6));
+    const bd = measurePts[1] || (hoverPlace && hoverPlace.pt);
+    if (b2 && bd) { const L = Math.hypot(bd[0] - measurePts[0][0], bd[1] - measurePts[0][1]); pill(g, (sc[0][0] + b2[0]) / 2, (sc[0][1] + b2[1]) / 2 - 14, mpu ? fL(L * mpu) : `${nf(L, 1)} ${unitName()} (no scale)`, COL.meas, 1); }
+  }
+  if (hoverPlace && hoverPlace.snapped && tool !== 'select') { const q = mapS(...hoverPlace.pt); g.beginPath(); g.arc(q[0], q[1], 9, 0, Math.PI * 2); g.strokeStyle = COL.meas; g.lineWidth = 1.6; g.stroke(); }
+}
+function closeHover() { if (!draft || draft.pts.length < 3 || !hover) return false; const f = toS(...draft.pts[0]); return Math.hypot(f.x - hover.x, f.y - hover.y) < 11; }
+
+function updateHud() {
+  const hud = $('#hud'); let t = '';
+  const mpu = mpuOf(cur);
+  if (draft && draft.pts.length) {
+    const pts = hoverPlace && !closeHover() ? draft.pts.concat([hoverPlace.pt]) : draft.pts;
+    const a = mpu && pts.length >= 3 ? Math.abs(sArea(pts)) * mpu * mpu : null;
+    t = `${{ inc: 'Area', exc: 'Void / exclusion', unc: 'Unconditioned area', bnd: 'Building boundary' }[draft.kind]} · ${draft.pts.length} point${draft.pts.length > 1 ? 's' : ''}` + (a != null ? ` · <b>${fA(a)} m²</b>` : '') + ' · double-click, Enter or click the first point to finish';
+  } else if (tool === 'calib') t = calibPts.length === 0 ? 'Click the <b>first end</b> of a known dimension' : calibPts.length === 1 ? 'Click the <b>second end</b> · hold Shift to keep it straight' : 'Enter the real length in the Scale panel';
+  else if (DRAW_TOOLS.includes(tool) && !mpu) t = 'No scale set for this page yet — you can trace now and calibrate later';
+  hud.innerHTML = t; hud.hidden = !t;
+  $('#zoomV').textContent = Math.round(V.z * 100) + '%';
+}
+
+/* ---------- sharp PDF detail at high zoom ---------- */
+let detailTimer = 0, detailTask = null, detailSeq = 0;
+function scheduleDetail() { clearTimeout(detailTimer); if (!S.file || S.file.type !== 'pdf' || !pdfPage) return; detailTimer = setTimeout(renderDetail, 170); }
+async function renderDetail() {
+  if (!pdfPage || V.z * dpr <= baseScale * 1.05) { detail = null; return; }
+  const seq = ++detailSeq; if (detailTask) { try { detailTask.cancel(); } catch (e) {} }
+  const c = document.createElement('canvas'); c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+  const g = c.getContext('2d'), [cc, ss] = CS[V.r], z = V.z * dpr, tr = [z * cc, z * ss, -z * ss, z * cc, V.x * dpr, V.y * dpr];
+  const pg = S.pages[cur]; g.setTransform(...tr); g.fillStyle = '#fff'; g.fillRect(0, 0, pg.w, pg.h); g.setTransform(1, 0, 0, 1, 0, 0);
+  const view = { z: V.z, r: V.r, x: V.x, y: V.y, pg: cur, page: pdfPage };
+  const task = pdfPage.render({ canvasContext: g, viewport: pdfPage.getViewport({ scale: 1 }), transform: tr, background: 'rgba(0,0,0,0)' });
+  detailTask = task;
+  try { await task.promise; } catch (e) { return; }
+  if (seq !== detailSeq || view.page !== pdfPage) return;
+  detail = Object.assign({ c }, view); requestDraw();
+}
+
+/* ---------- view operations ---------- */
+function afterView() { requestDraw(); scheduleDetail(); }
+function centreOn(d) { const [c, s] = CS[V.r]; V.x = W / 2 - V.z * (c * d[0] - s * d[1]); V.y = H / 2 - V.z * (s * d[0] + c * d[1]); }
+function syncSize() { const r = ws.getBoundingClientRect(); if (r.width && (Math.abs(r.width - W) > .5 || Math.abs(r.height - H) > .5)) { dpr = window.devicePixelRatio || 1; W = r.width; H = r.height; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); detail = null; } }
+function fit() { syncSize(); const pg = S.pages[cur]; if (!pg || !W) return; const pad = 30, rw = V.r % 2 ? pg.h : pg.w, rh = V.r % 2 ? pg.w : pg.h; V.z = Math.max(1e-4, Math.min((W - 2 * pad) / rw, (H - 2 * pad) / rh)); centreOn([pg.w / 2, pg.h / 2]); afterView(); }
+function zoomAt(f, sx, sy) { const d = toD(sx, sy); V.z = Math.min(400, Math.max(1e-4, V.z * f)); const p = toS(d[0], d[1]); V.x += sx - p.x; V.y += sy - p.y; afterView(); }
+function rotate() { if (!S.file) return; const d = toD(W / 2, H / 2); V.r = (V.r + 1) % 4; S.pages[cur].rot = V.r; centreOn(d); detail = null; afterView(); renderDrawInfo(); }
+
+/* ---------- interaction ---------- */
+function evPt(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function findSnap(s, skip) {
+  let best = null, bd = 9;
+  const test = (q, tag) => { const p = toS(q[0], q[1]), d = Math.hypot(p.x - s.x, p.y - s.y); if (d < bd) { bd = d; best = q; } };
+  for (const p of S.polys) { if (p.page !== cur) continue; p.pts.forEach((q, i) => { if (skip && skip.id === p.id && skip.i === i) return; test(q); }); }
+  if (draft) draft.pts.slice(1).forEach(q => test(q));
+  return best;
+}
+function placePoint(s, shift, ref, skip) {
+  if (shift && ref) {
+    const r = toS(ref[0], ref[1]), q = { x: s.x, y: s.y };
+    if (Math.abs(q.x - r.x) > Math.abs(q.y - r.y)) q.y = r.y; else q.x = r.x;
+    const d = toD(q.x, q.y); if (Math.abs(d[0] - ref[0]) < Math.abs(d[1] - ref[1])) d[0] = ref[0]; else d[1] = ref[1];
+    return { pt: d, snapped: false };
+  }
+  const sn = findSnap(s, skip); if (sn) return { pt: sn.slice(), snapped: true };
+  return { pt: toD(s.x, s.y), snapped: false };
+}
+function refPoint() { if (draft && draft.pts.length) return draft.pts[draft.pts.length - 1]; if (tool === 'calib' && calibPts.length === 1) return calibPts[0].pt; if (tool === 'measure' && measurePts.length === 1) return measurePts[0]; return null; }
+
+function hitHandles(p) {
+  const poly = S.polys.find(q => q.id === sel && q.page === cur); if (!poly) return null;
+  const sc = poly.pts.map(q => toS(q[0], q[1]));
+  for (let i = 0; i < sc.length; i++) if (Math.hypot(sc[i].x - p.x, sc[i].y - p.y) < 9) return { type: 'v', poly, i };
+  for (let i = 0; i < sc.length; i++) { const a = sc[i], b = sc[(i + 1) % sc.length]; if (Math.hypot(b.x - a.x, b.y - a.y) < 26) continue; if (Math.hypot((a.x + b.x) / 2 - p.x, (a.y + b.y) / 2 - p.y) < 8) return { type: 'm', poly, i }; }
+  return null;
+}
+function hitPoly(p) {
+  const d = toD(p.x, p.y), list = S.polys.filter(q => q.page === cur);
+  for (const kind of ['exc', 'inc']) for (let i = list.length - 1; i >= 0; i--) { const q = list[i]; if (q.kind === kind && pip(d, q.pts)) return q; }
+  // near an edge counts too
+  for (const q of list) { const sc = q.pts.map(v => toS(v[0], v[1])); for (let i = 0; i < sc.length; i++) { const a = sc[i], b = sc[(i + 1) % sc.length]; if (distSeg(p, a, b) < 6) return q; } }
+  return null;
+}
+function distSeg(p, a, b) { const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy; let t = L ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)); }
+function deleteVertex(poly, i) { if (poly.pts.length <= 3) { toast('An area needs at least 3 points. Delete the whole area instead.'); return; } mutate(() => { poly.pts.splice(i, 1); }); selV = -1; }
+
+cv.addEventListener('pointerdown', e => {
+  if (curTab !== 'measure') { openTab('measure'); }
+  if (!S.file) return; const p = evPt(e); hover = p;
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  if (e.button === 1 || spaceDown) { e.preventDefault(); ptr = { mode: 'pan', sx: p.x, sy: p.y, vx: V.x, vy: V.y }; cv.style.cursor = 'grabbing'; return; }
+  if (e.button === 2) { if (tool === 'select') { const h = hitHandles(p); if (h && h.type === 'v') deleteVertex(h.poly, h.i); } return; }
+  if (e.button !== 0) return;
+  if (tool === 'select') {
+    const h = hitHandles(p);
+    if (h) {
+      if (h.type === 'v') { if (e.altKey) { deleteVertex(h.poly, h.i); return; } selV = h.i; ptr = { mode: 'vertex', poly: h.poly, i: h.i, before: snap(), moved: false, sx: p.x, sy: p.y }; }
+      else { const before = snap(); h.poly.pts.splice(h.i + 1, 0, toD(p.x, p.y)); selV = h.i + 1; ptr = { mode: 'vertex', poly: h.poly, i: h.i + 1, before, moved: true, sx: p.x, sy: p.y }; }
+      requestDraw(); return;
+    }
+    const hp = hitPoly(p);
+    if (hp) { if (sel !== hp.id) { sel = hp.id; selV = -1; renderList(); } requestDraw(); ptr = { mode: 'pending', sx: p.x, sy: p.y, vx: V.x, vy: V.y, noClick: true }; return; }
+    if (sel != null) { sel = null; selV = -1; renderList(); requestDraw(); }
+  }
+  if (tool === 'calib' && calibPts.length === 2) { const i = calibPts.findIndex(q => { const s = toS(...q.pt); return Math.hypot(s.x - p.x, s.y - p.y) < 10; }); if (i >= 0) { ptr = { mode: 'calpt', i }; return; } }
+  ptr = { mode: 'pending', sx: p.x, sy: p.y, vx: V.x, vy: V.y };
+});
+cv.addEventListener('pointermove', e => {
+  if (!S.file) return; const p = evPt(e); hover = p;
+  if (ptr) {
+    if (ptr.mode === 'pending' && Math.hypot(p.x - ptr.sx, p.y - ptr.sy) > 4) { ptr.mode = 'pan'; cv.style.cursor = 'grabbing'; }
+    if (ptr.mode === 'pan') { V.x = ptr.vx + p.x - ptr.sx; V.y = ptr.vy + p.y - ptr.sy; afterView(); }
+    else if (ptr.mode === 'vertex') { const pl = placePoint(p, false, null, { id: ptr.poly.id, i: ptr.i }); ptr.poly.pts[ptr.i] = pl.pt; ptr.moved = true; hoverPlace = pl; updateNumbers(); requestDraw(); }
+    else if (ptr.mode === 'calpt') { calibPts[ptr.i] = { pt: placePoint(p, e.shiftKey, calibPts[1 - ptr.i].pt).pt, z: V.z }; renderScale(); requestDraw(); }
+  } else {
+    hoverPlace = (tool === 'select') ? null : placePoint(p, e.shiftKey, refPoint());
+    if (tool === 'select') cv.style.cursor = hitHandles(p) ? 'move' : (hitPoly(p) ? 'pointer' : 'grab');
+    requestDraw();
+  }
+  showCoord(p);
+});
+function endPtr(e) {
+  if (!ptr) return; const p = evPt(e), m = ptr; ptr = null; setCursor();
+  if (m.mode === 'pending' && !m.noClick) click(p, e);
+  else if (m.mode === 'vertex' && m.moved) { commit(m.before); refresh(); }
+}
+cv.addEventListener('pointerup', endPtr);
+cv.addEventListener('pointercancel', () => { if (ptr && ptr.mode === 'vertex' && ptr.moved) restore(ptr.before); ptr = null; });
+cv.addEventListener('pointerleave', () => { if (!ptr) { hover = null; hoverPlace = null; requestDraw(); } });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('dblclick', e => { if (draft) { e.preventDefault(); finishDraft(); } else if (tool === 'select') { const hp = hitPoly(evPt(e)); if (hp) { const li = document.querySelector(`.item[data-id="${hp.id}"] .nm`); if (li) { li.focus(); li.select(); } } } });
+cv.addEventListener('wheel', e => { if (!S.file) return; e.preventDefault(); const p = evPt(e); const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; zoomAt(Math.exp(-dy * 0.0016), p.x, p.y); }, { passive: false });
+
+function click(p, e) {
+  if (DRAW_TOOLS.includes(tool)) {
+    const kind = KIND_OF[tool];
+    if (!draft) draft = { kind, pts: [] };
+    if (draft.pts.length >= 3) { const f = toS(...draft.pts[0]); if (Math.hypot(f.x - p.x, f.y - p.y) < 11) { finishDraft(); return; } }
+    const pl = placePoint(p, e.shiftKey, refPoint());
+    if (draft.pts.length) { const l = toS(...draft.pts[draft.pts.length - 1]), q = toS(...pl.pt); if (Math.hypot(l.x - q.x, l.y - q.y) < 3) return; }
+    draft.pts.push(pl.pt); requestDraw();
+  } else if (tool === 'calib') {
+    if (calibPts.length >= 2) calibPts = [];
+    calibPts.push({ pt: placePoint(p, e.shiftKey, refPoint()).pt, z: V.z });
+    renderScale(); requestDraw();
+    if (calibPts.length === 2) { const i = $('#distIn'); if (i) i.focus(); }
+  } else if (tool === 'measure') {
+    if (measurePts.length >= 2) measurePts = [];
+    measurePts.push(placePoint(p, e.shiftKey, refPoint()).pt); requestDraw();
+  }
+}
+function finishDraft() {
+  if (!draft) return;
+  if (draft.pts.length < 3) { toast('An area needs at least 3 points.'); return; }
+  const d = draft; draft = null; hoverPlace = null;
+  const n = S.polys.filter(p => p.kind === d.kind).length + 1;
+  let name;
+  if (d.kind === 'bnd') name = S.pages.length > 1 ? `${lbl(cur)} – building boundary` : 'Building boundary';
+  else if (d.kind === 'unc') name = 'Plant room';
+  else if (S.pages.length > 1) { const m = S.polys.filter(p => p.kind === d.kind && p.page === cur).length + 1; name = d.kind === 'exc' ? `${lbl(cur)} – exclusion ${m}` : (m === 1 ? lbl(cur) : `${lbl(cur)} – area ${m}`); }
+  else name = d.kind === 'exc' ? `Exclusion ${n}` : (n === 1 ? 'Ground floor' : `Area ${n}`);
+  let bench = lastBench != null && benchIdx().includes(lastBench) ? lastBench : benchIdx()[0];
+  if (d.kind === 'inc') { const prevA = S.polys.filter(p => p.page === cur && p.kind === 'inc').pop(); if (prevA && lastBench == null) bench = prevA.bench || 0; }
+  else if (d.kind === 'exc') { const lp = labelPt(d.pts), host = S.polys.filter(p => p.page === cur && p.kind === 'inc').reverse().find(p => pip(lp, p.pts)); if (host) bench = host.bench || 0; }
+  const poly = { id: S.nextId, page: cur, name, kind: d.kind, bench, pts: d.pts };
+  mutate(() => { S.polys.push(poly); S.nextId++; });
+  sel = poly.id; S.isSample = false; renderList(); requestDraw();
+  const a = areaM(poly);
+  toast(a == null ? `${poly.name} traced. Set the scale to calculate its area.` : `${poly.name}: ${fA(a)} m²${selfX(poly.pts) ? ' — outline crosses itself, check it' : ''}`);
+}
+function cancelOp() { if (draft) { draft = null; } else if (calibPts.length) { calibPts = []; renderScale(); } else if (measurePts.length) { measurePts = []; } else if (sel != null) { sel = null; selV = -1; renderList(); } requestDraw(); }
+function deleteSel() {
+  if (draft) { draft.pts.pop(); if (!draft.pts.length) draft = null; requestDraw(); return; }
+  const p = S.polys.find(q => q.id === sel); if (!p) return;
+  if (selV >= 0) { deleteVertex(p, selV); return; }
+  mutate(() => { S.polys = S.polys.filter(q => q.id !== p.id); }); sel = null; toast(`Deleted ${p.name}. Undo with Ctrl+Z.`);
+}
+function setCursor() { cv.style.cursor = spaceDown ? 'grab' : (tool === 'select' ? 'default' : 'crosshair'); }
+const HINTS = {
+  select: 'Click an area to select it · drag square handles to move points · drag a round midpoint to add a point · Alt-click or right-click a point to remove it · drag empty space to pan · scroll to zoom',
+  poly: 'Click to add points · Shift keeps the edge horizontal or vertical · points snap to existing corners · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
+  unc: 'Trace plant rooms, bin stores and other unconditioned spaces · they are listed separately and not added to or subtracted from the total · finish by clicking the first point, double-clicking or pressing Enter',
+  bnd: 'Trace the outer building boundary · it is not counted in the totals; areas that spill outside it are flagged · finish by clicking the first point, double-clicking or pressing Enter',
+  excl: 'Trace a courtyard, void or other area to subtract · finish by clicking the first point, double-clicking or pressing Enter · Esc cancels',
+  calib: 'Zoom in and click both ends of a dimension you know · Shift keeps the line horizontal or vertical · drag either end to adjust before applying',
+  measure: 'Click two points to check a dimension against the drawing · Shift keeps it straight'
+};
+function setTool(t) {
+  if (t !== tool) { if (draft && DRAW_TOOLS.includes(t)) draft.kind = KIND_OF[t]; else if (draft) draft = null; if (t !== 'calib') calibPts = []; if (t !== 'measure') measurePts = []; }
+  if (curTab !== 'measure') openTab('measure');
+  if (t === 'calib') scaleClosed = false;
+  tool = t; document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === t)));
+  $('#hint').textContent = HINTS[t]; hoverPlace = null; setCursor(); renderScale(); requestDraw();
+}
+document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => { if (sumOpen) setSumView(false); setTool(b.dataset.tool); }));
+function showCoord(p) { const mpu = mpuOf(cur); if (!S.file || !p) { $('#coord').textContent = ''; return; } const d = toD(p.x, p.y); $('#coord').textContent = mpu ? `x ${nf(d[0] * mpu, 2)} m  y ${nf(d[1] * mpu, 2)} m` : `x ${nf(d[0], 1)}  y ${nf(d[1], 1)} ${unitName()}`; }
+
+window.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase(); const typing = tag === 'input' || tag === 'select' || tag === 'textarea';
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); saveProject(); return; }
+  if (typing) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (!$('#modal').hidden) return;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod) return;
+  switch (e.key) {
+    case ' ': e.preventDefault(); if (!spaceDown) { spaceDown = true; setCursor(); } break;
+    case 'v': case 'V': setTool('select'); break;
+    case 'p': case 'P': setTool('poly'); break;
+    case 'x': case 'X': setTool('excl'); break;
+    case 'b': case 'B': setTool('bnd'); break;
+    case 'u': case 'U': setTool('unc'); break;
+    case 's': case 'S': if (S.file) setSumView(!sumOpen); break;
+    case 'c': case 'C': setTool('calib'); break;
+    case 'm': case 'M': setTool('measure'); break;
+    case 'f': case 'F': fit(); break;
+    case 'r': case 'R': rotate(); break;
+    case '+': case '=': zoomAt(1.25, W / 2, H / 2); break;
+    case '-': case '_': zoomAt(0.8, W / 2, H / 2); break;
+    case 'Enter': if (draft) finishDraft(); else if (calibPts.length === 2) applyTwoPoint(); break;
+    case 'Escape': closeMenu(); if (curTab !== 'measure') { openTab('measure'); break; } if (!draft && !calibPts.length && !measurePts.length && !$('#scaleStrip').hidden) { scaleClosed = true; scaleOpen = false; manualOpen = false; syncScaleStrip(); if (tool === 'calib') setTool('select'); break; } cancelOp(); break;
+    case 'Delete': case 'Backspace': e.preventDefault(); deleteSel(); break;
+    case 'PageDown': { const lp = livePages(), k = lp.indexOf(cur); if (k >= 0 && k < lp.length - 1) { e.preventDefault(); showPage(lp[k + 1]); } } break;
+    case 'PageUp': { const lp = livePages(), k = lp.indexOf(cur); if (k > 0) { e.preventDefault(); showPage(lp[k - 1]); } } break;
+  }
+});
+window.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; setCursor(); } });
+
+/* ---------- sidebar ---------- */
+function refresh() { renderList(); renderScale(); renderDrawInfo(); updateNumbers(); updUndo(); requestDraw(); }
+function updUndo() { $('#bUndo').disabled = !undoS.length && !(draft && draft.pts.length); $('#bRedo').disabled = !redoS.length; const has = !!S.file; ['bExport', 'bReset', 'bZin', 'bZout', 'bFit', 'bRot'].forEach(id => $('#' + id).disabled = !has); }
+
+function updateNumbers() {
+  const t = totals();
+  $('#netV').textContent = t.any ? fA(t.net) : '—';
+  $('#incV').textContent = t.nInc ? fA(t.inc) : '—';
+  $('#excV').textContent = t.nExc ? fA(t.exc) : '—';
+  $('#cntV').textContent = t.nUnc ? fA(t.unc) : '—';
+  S.polys.forEach(p => { const el = document.querySelector(`.item[data-id="${p.id}"]`); if (!el) return; const a = areaM(p), pr = perimM(p); el.querySelector('.ar').textContent = a == null ? 'no scale' : (p.kind === 'exc' ? '− ' : '') + fA(a) + ' m²' + (p.kind === 'bnd' ? ' ref' : ''); el.querySelector('.meta').textContent = (pr == null ? '' : 'Perimeter ' + fL(pr) + ' · ') + p.pts.length + ' pts'; });
+  document.querySelectorAll('.ghead [data-fsub]').forEach(el => { const ft = floorTot(+el.dataset.fsub); el.textContent = ft.n - ft.miss ? 'net ' + fA(ft.net) + ' m²' : 'no scale'; });
+  const fs = $('#fsum'), multi = S.pages.length > 1 && S.polys.length > 0;
+  fs.hidden = !multi;
+  if (multi) fs.innerHTML = S.pages.map((pg, i) => { const ft = floorTot(i); if (pg.removed || (!ft.n && !pg.calib)) return ''; return `<div><dt>${esc(lbl(i))}</dt><dd>${ft.n - ft.miss ? fA(ft.net) + ' m²' : (ft.n ? 'no scale' : '—')}</dd></div>`; }).join('');
+  renderFloors(); renderBsum(); renderSumView();
+  const pgc = S.file && S.pages[cur] && S.pages[cur].calib, chip = $('#schip');
+  chip.classList.toggle('ok', !!pgc); $('#schipT').textContent = !S.file ? 'No drawing' : pgc ? 'Scale: ' + (pgc.method === 'scale' ? '1:' + nf(pgc.n, pgc.n % 1 ? 2 : 0) : (equivScale(pgc) ? '≈1:' + nf(equivScale(pgc).n, 0) : 'set')) : 'Scale not set';
+  $('#scaleDot').hidden = !S.file || !!pgc; syncScaleStrip(); $('#signDot').hidden = !S.file || !S.polys.length || !signIssue();
+  $('#showSideV').textContent = t.any ? fA(t.net) + ' m²' : '';
+  const w = warnings(); lastIssues = w; $('#warns').innerHTML = w.map((x, i) => `<li class="iss ${x.sev === 'err' ? 'err' : ''}" data-i="${i}" title="Show on the drawing"><span class="tg">${ISSUE_TAG[x.type] || 'Check'}</span><span>${esc(x.msg)}</span></li>`).join('');
+  const st = $('#status'); let cls = 'ok', msg;
+  if (!S.file) { cls = ''; msg = 'No drawing open'; }
+  else if (!S.pages[cur].calib) { cls = 'warn'; msg = S.pages.length > 1 ? `Scale not set for ${lbl(cur)} — its areas cannot be calculated yet` : 'Scale not set for this page — areas cannot be calculated yet'; }
+  else if (!S.polys.length) { cls = ''; msg = 'Scale set · trace the floor outline with the Area tool'; }
+  else if (w.length) { cls = 'warn'; msg = `${w.length} item${w.length > 1 ? 's' : ''} to check before using these figures`; }
+  else msg = `${t.nInc} included, ${t.nExc} excluded · traced manually, check against drawing dimensions`;
+  st.className = 'status ' + cls; $('#statusT').textContent = msg;
+  if (S.isSample && S.polys.length) $('#statusT').textContent = 'Sample plan · ' + msg;
+}
+
+function renderBsum() {
+  const box = $('#bsum');
+  if (S.file && S.polys.length) {
+    const multiB = S.site.buildings.length > 1, named = S.site.bench.some(x => x && x.trim()); let h = '';
+    for (const b of S.site.buildings) {
+      const sm = bldSummary(b); if (!sm.measured && !sm.prev) continue;
+      if (multiB) h += `<h4>${esc(bldName(b))}</h4>`;
+      const ks = Object.keys(sm.byBench);
+      if (named || ks.length > 1) ks.forEach(k => { h += `<div class="r"><span>${esc(benchName(+k))}</span><b>${fA(sm.byBench[k])} m²</b></div>`; });
+      if (sm.measured) h += `<div class="r tu"><span>TUFA</span><b>${fA(sm.tufa)} m²</b></div>`;
+      if (sm.prev) h += `<div class="r"><span>Previous DEC ${fA(sm.prev)} m²</span>${sm.diff != null ? `<b class="${Math.abs(sm.diff) > PREV_TOL ? 'diff-warn' : 'diff-ok'}">${sm.diff >= 0 ? '+' : '−'}${nf(Math.abs(sm.diff) * 100, 1)} %</b>` : '<b>—</b>'}</div>`;
+      if (sm.uncTot) h += `<div class="r"><span>Unconditioned (recorded)</span><b style="color:#6D28D9">${fA(sm.uncTot)} m²</b></div>`;
+    }
+    box.innerHTML = h; box.hidden = !h;
+  } else box.hidden = true;
+  document.querySelectorAll('[data-bmeas]').forEach(el => { const b = S.site.buildings.find(x => x.id === +el.dataset.bmeas); if (!b) return; const sm = bldSummary(b); el.textContent = sm.measured ? `Measured here: ${fA(sm.tufa)} m² on ${sm.pages.length} floor${sm.pages.length === 1 ? '' : 's'}` : (S.pages.length ? 'No measured floors assigned yet' : ''); });
+  renderSplit();
+}
+function renderSite() {
+  const box = $('#siteBox'), one = S.site.buildings.length === 1;
+  let h = `<div class="rcol"><div class="rg-cap">Benchmark categories</div><div class="fl" style="display:none">Benchmark categories</div><p class="note">Up to four, named as in your DEC software. Every area and void is assigned to one.</p>
+    <div class="g2">${[0, 1, 2, 3].map(i => `<input class="in txt" data-bench="${i}" list="benchSug" maxlength="60" placeholder="Category ${i + 1}" value="${esc(S.site.bench[i] || '')}" aria-label="Benchmark category ${i + 1}">`).join('')}</div>
+    </div><div class="rcol blds"><div class="rg-cap">${one ? 'Building' : 'Buildings on this site'}</div>`;
+  S.site.buildings.forEach((b, i) => {
+    h += `<div class="bld" data-bid="${b.id}"><div class="hdr"><input class="in txt" style="flex:1;min-width:0" data-bf="name" maxlength="60" placeholder="${one ? 'Building name (optional)' : 'Building ' + (i + 1)}" value="${esc(b.name)}" aria-label="Building name">${one ? '' : `<button class="mini" type="button" data-bdel="${b.id}" title="Remove this building" aria-label="Remove building"><svg class="i"><use href="#i-trash"/></svg></button>`}</div>
+      <span class="note" data-bmeas="${b.id}"></span>
+      <div class="g2"><label class="fl">Area on previous DEC (m²)<input class="in" data-bf="prev" inputmode="decimal" value="${esc(b.prev)}" placeholder="optional"></label>${one ? '' : `<label class="fl">Area from elsewhere (m²)<input class="in" data-bf="manual" inputmode="decimal" value="${esc(b.manual)}" placeholder="if not measured here"></label>`}</div></div>`;
+  });
+  h += `<div class="row"><button class="btn" type="button" id="bAddB">Add building</button></div>`;
+  if (!one) h += `<p class="note">Assign each floor to its building under Current floor. For a building measured on another drawing, enter its area under “Area from elsewhere”.</p>`;
+  h += '</div>';
+  box.innerHTML = h;
+  $('#energySec').hidden = one;
+  renderEnergy(); renderBsum();
+}
+$('#siteBox').addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.bench != null) { S.site.bench[+t.dataset.bench] = t.value; dirty = true; renderList(); requestDraw(); return; }
+  const card = t.closest('[data-bid]'), b = card && S.site.buildings.find(x => x.id === +card.dataset.bid);
+  if (b && t.dataset.bf) { b[t.dataset.bf] = t.value; dirty = true; updateNumbers(); if (t.dataset.bf === 'name') { renderFloors(); const sel = $('#pgBld'); if (sel) [...sel.options].forEach(o => { const bb = S.site.buildings.find(x => x.id === +o.value); if (bb) o.textContent = bldName(bb); }); } }
+});
+$('#siteBox').addEventListener('click', e => {
+  if (e.target.closest('#bAddB')) { S.site.buildings.push({ id: S.site.nextB++, name: '', prev: '', manual: '' }); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); toast('Building added. Assign floors to it under Current floor on this tab.'); return; }
+  const del = e.target.closest('[data-bdel]'); if (!del) return; const id = +del.dataset.bdel;
+  S.site.buildings = S.site.buildings.filter(b => b.id !== id); S.pages.forEach(pg => { if (pg.bld === id) pg.bld = S.site.buildings[0].id; }); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); updateNumbers();
+});
+function renderEnergy() {
+  if (S.site.buildings.length < 2) { $('#energyBox').innerHTML = ''; return; }
+  const e = S.site.energy, f = (k, label, ph, txt) => `<label class="fl">${label}<input class="in${txt ? ' txt' : ''}" data-en="${k}" ${txt ? '' : 'inputmode="decimal"'} value="${esc(e[k])}" placeholder="${ph}"></label>`;
+  $('#energyBox').innerHTML = `<p class="note">Only for buildings that share a meter. Enter the site totals for the assessment period and each building gets a share in proportion to its floor area.</p>
+    <div class="g2">${f('elec', 'Electricity (kWh)', 'site total', 0)}${f('gas', 'Natural gas (kWh)', 'site total', 0)}${f('other', 'Other fuel (kWh)', 'optional', 0)}${f('otherName', 'Other fuel type', 'e.g. Fuel oil', 1)}</div>
+    <div class="tblwrap" id="splitTbl"></div>`;
+  renderSplit();
+}
+$('#energyBox').addEventListener('input', e => { const k = e.target.dataset.en; if (!k) return; S.site.energy[k] = e.target.value; dirty = true; renderSplit(); renderSumView(); });
+function renderSplit() {
+  const el = $('#splitTbl'); if (!el || S.site.buildings.length < 2) return;
+  const sp = energySplit(), cols = [['elec', 'Elec. kWh'], ['gas', 'Gas kWh'], ['other', (S.site.energy.otherName || 'Other') + ' kWh']].filter(([k]) => sp.E[k] != null);
+  el.innerHTML = `<table class="split"><thead><tr><th>Building</th><th>Area m²</th><th>Share</th>${cols.map(c => `<th>${esc(c[1])}</th>`).join('')}</tr></thead>
+    <tbody>${sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' <span class="note">(entered)</span>' : ''}</td><td>${fA(r.splitArea)}</td><td>${nf(r.share * 100, 1)} %</td>${cols.map(c => `<td>${nf(r[c[0]], 0)}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr><td>Site total</td><td>${fA(sp.total)}</td><td>${sp.total ? '100 %' : '—'}</td>${cols.map(c => `<td>${nf(sp.E[c[0]], 0)}</td>`).join('')}</tr></tfoot></table>`;
+}
+let curTab = 'measure', scaleOpen = false, scaleClosed = false;
+function syncScaleStrip() { const pgc = S.file && S.pages[cur] && S.pages[cur].calib; const vis = !!(S.file && curTab === 'measure' && !scaleClosed && (!pgc || tool === 'calib' || manualOpen || scaleOpen)); $('#scaleStrip').hidden = !vis; ws.classList.toggle('hud-low', vis); }
+function openTab(t) {
+  if (t === curTab && t !== 'measure') t = 'measure';
+  curTab = t;
+  document.querySelectorAll('.rtab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.rt === t)));
+  document.querySelectorAll('.rpanel.ov').forEach(p => { p.hidden = p.dataset.rp !== t; }); syncScaleStrip();
+  if (t === 'sign') sizePad();
+}
+document.querySelectorAll('.rtab').forEach(b => b.addEventListener('click', () => openTab(b.dataset.rt)));
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => openTab('measure')));
+$('#schip').addEventListener('click', () => { openTab('measure'); if ($('#scaleStrip').hidden) { scaleClosed = false; scaleOpen = true; } else { scaleClosed = true; scaleOpen = false; } renderScale(); });
+$('#scClose').addEventListener('click', () => { scaleClosed = true; scaleOpen = false; manualOpen = false; syncScaleStrip(); });
+function setSide(show) { $('.main').classList.toggle('collapsed', !show); $('#bShowSide').hidden = show; updateNumbers(); }
+$('#bHideSide').addEventListener('click', () => setSide(false));
+$('#bShowSide').addEventListener('click', () => setSide(true));
+let sumOpen = false;
+function setSumView(on) {
+  sumOpen = !!on && !!S.file; $('#sumView').hidden = !sumOpen; ws.hidden = sumOpen; $('#bSummary').setAttribute('aria-pressed', String(sumOpen));
+  if (sumOpen) renderSumView(); else { resize(); requestDraw(); }
+}
+$('#bSummary').addEventListener('click', () => { if (!S.file) { toast('Open a drawing first.'); return; } setSumView(!sumOpen); });
+function renderSumView() {
+  if (!sumOpen) return;
+  const box = $('#sumView'), sums = S.site.buildings.map(bldSummary), t = totals(), multiB = S.site.buildings.length > 1;
+  const m2 = v => `${fA(v)} m²`;
+  let h = `<div class="sv-head"><div><h2>Area summary</h2><p>${esc(S.meta.building || 'Site name not entered')}${S.meta.ref ? ' · ' + esc(S.meta.ref) : ''} · ${esc(S.file.name)}</p></div><button class="btn" type="button" id="svBack">Back to drawing</button></div>`;
+  const siteTufa = sums.reduce((a, x) => a + (x.measured ? x.tufa : (x.manual || 0)), 0);
+  h += `<div class="sv-kpis"><div class="sv-kpi hl"><span>${multiB ? 'Site TUFA' : 'TUFA'}</span><b>${m2(siteTufa)}</b></div><div class="sv-kpi"><span>Included</span><b>${m2(t.inc)}</b></div><div class="sv-kpi"><span>Voids</span><b style="color:var(--exc)">${t.nExc ? '− ' + m2(t.exc) : '—'}</b></div><div class="sv-kpi"><span>Unconditioned</span><b style="color:#6D28D9">${t.nUnc ? m2(t.unc) : '—'}</b></div></div>`;
+  for (const sm of sums) {
+    if (!sm.measured && !sm.manual && !sm.prev && !sm.unc.length && multiB) continue;
+    h += `<div class="sv-card"><h3>${esc(bldName(sm.b))}<small>${sm.pages.length} floor${sm.pages.length === 1 ? '' : 's'}</small></h3><div class="sv-body">`;
+    if (sm.measured) {
+      h += `<div class="tblwrap"><table class="stbl"><thead><tr><th>Floor</th><th>Benchmark category</th><th class="n">Measured area</th><th class="n">Void area</th><th class="n">Benchmark area</th></tr></thead><tbody>`;
+      h += sm.rows.map(r => `<tr class="go" data-pg="${r.page}" title="Show ${esc(lbl(r.page))} on the drawing"><td>${esc(lbl(r.page))}</td><td>${esc(benchName(r.bench))}</td><td class="n">${m2(r.gross)}</td><td class="n void">${r.void ? '− ' + m2(r.void) : '—'}</td><td class="n">${m2(r.net)}</td></tr>`).join('');
+      h += Object.keys(sm.byBench).map(k => `<tr class="subt"><td>Total</td><td>${esc(benchName(+k))}</td><td></td><td></td><td class="n">${m2(sm.byBench[k])}</td></tr>`).join('');
+      h += `<tr class="tufa"><td colspan="4">TUFA (total useful floor area)</td><td class="n">${m2(sm.tufa)}</td></tr></tbody></table></div>`;
+    } else if (sm.manual) h += `<div class="sv-prev"><span>Area entered (measured elsewhere)</span><b>${m2(sm.manual)}</b></div>`;
+    else h += `<p class="sv-empty">No measured floors assigned to this building yet.</p>`;
+    if (sm.prev) h += `<div class="sv-prev"><span>Area on previous DEC <b>${m2(sm.prev)}</b></span>${sm.diff != null ? `<span>Difference <b class="${Math.abs(sm.diff) > PREV_TOL ? 'diff-warn' : 'diff-ok'}">${sm.diff >= 0 ? '+' : '−'}${m2(Math.abs(sm.tufa - sm.prev))} (${sm.diff >= 0 ? '+' : '−'}${nf(Math.abs(sm.diff) * 100, 1)} %)</b></span>` : ''}${sm.diff != null && Math.abs(sm.diff) > PREV_TOL ? '<span class="diff-warn">More than 5 % change: note the reason for the audit.</span>' : ''}</div>`;
+    if (sm.unc.length) h += `<h4>Unconditioned areas · recorded only, not added to or subtracted from the TUFA</h4><div class="tblwrap"><table class="stbl"><thead><tr><th>Floor</th><th>Type</th><th class="n">Area</th></tr></thead><tbody>${sm.unc.map(u => `<tr class="go" data-pg="${u.page}"><td>${esc(lbl(u.page))}</td><td>${esc(u.name)}</td><td class="n unc">${m2(u.area)}</td></tr>`).join('')}<tr class="subt"><td colspan="2">Total unconditioned</td><td class="n unc">${m2(sm.uncTot)}</td></tr></tbody></table></div>`;
+    h += `</div></div>`;
+  }
+  if (multiB) {
+    const sp = energySplit(), ec = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
+    h += `<div class="sv-card"><h3>Energy split by floor area<small>site totals × each building's share of the floor area</small></h3><div class="sv-body"><div class="tblwrap"><table class="stbl"><thead><tr><th>Building</th><th class="n">Floor area</th><th class="n">Share</th>${ec.map(c => `<th class="n">${esc(c[1])} (kWh)</th>`).join('')}</tr></thead><tbody>`;
+    h += sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' (entered)' : ''}</td><td class="n">${m2(r.splitArea)}</td><td class="n">${nf(r.share * 100, 1)} %</td>${ec.map(c => `<td class="n">${nf(r[c[0]], 0)}</td>`).join('')}</tr>`).join('');
+    h += `<tr class="tufa"><td>Site total</td><td class="n">${m2(sp.total)}</td><td class="n">${sp.total ? '100 %' : '—'}</td>${ec.map(c => `<td class="n">${nf(sp.E[c[0]], 0)}</td>`).join('')}</tr></tbody></table></div>${ec.length ? '' : '<p class="sv-empty">Enter the site energy totals in the Energy split panel to see each building’s share in kWh.</p>'}</div></div>`;
+  }
+  const w = warnings();
+  if (w.length) h += `<div class="sv-card"><h3>Items to check<small>${w.length}</small></h3><div class="sv-body"><ul class="warns" id="svWarns">${w.map((x, i) => `<li class="iss ${x.sev === 'err' ? 'err' : ''}" data-i="${i}"><span class="tg">${ISSUE_TAG[x.type] || 'Check'}</span><span>${esc(x.msg)}</span></li>`).join('')}</ul></div></div>`;
+  h += `<div class="sv-card"><h3>Sign-off</h3><div class="sv-body sv-sign"><dl class="kv"><div><dt>Assessor</dt><dd>${esc(S.meta.assessor || 'Not entered')}</dd></div><div><dt>Date signed</dt><dd>${esc(fDate(S.sign.date) || 'Not dated')}</dd></div><div><dt>Declaration</dt><dd style="white-space:normal;text-align:right">${S.sign.confirm ? 'Confirmed: areas measured and checked against drawing dimensions' : '<span class="diff-warn">Not confirmed</span>'}</dd></div></dl>${S.sign.sig ? `<img src="${S.sign.sig}" alt="Assessor signature">` : '<div class="sv-missing">Not signed yet</div>'}</div></div>`;
+  box.innerHTML = h;
+}
+$('#sumView').addEventListener('click', async e => {
+  if (e.target.closest('#svBack')) { setSumView(false); return; }
+  const li = e.target.closest('#svWarns li[data-i]'); if (li) { const x = warnings()[+li.dataset.i]; setSumView(false); goIssue(x); return; }
+  const tr = e.target.closest('tr.go'); if (tr) { setSumView(false); if (+tr.dataset.pg !== cur) await showPage(+tr.dataset.pg); }
+});
+let showRemoved = false;
+function renderFloors() {
+  const bar = $('#floors'), show = !!S.file && S.pages.length > 1; bar.hidden = !show; if (!show) return;
+  const nRem = S.pages.length - livePages().length, canRemove = livePages().length > 1;
+  bar.innerHTML = S.pages.map((pg, i) => { if (pg.removed) return showRemoved ? `<div class="ftab removed" data-pg="${i}"><span class="pn">Page ${i + 1} · removed</span><span class="fn">${esc(lbl(i))}</span><button class="mini" type="button" data-restore="${i}">Restore</button></div>` : ''; const ft = floorTot(i); const sub = !pg.calib ? '<span class="fs ns">Scale not set</span>' : `<span class="fs">${ft.n - ft.miss ? fA(ft.net) + ' m² net' : 'Scaled · no areas yet'}</span>`;
+    return `<div class="ftab ${i === cur ? 'active' : ''}" role="tab" tabindex="0" aria-selected="${i === cur}" data-pg="${i}" title="${esc(lbl(i))} (page ${i + 1})"><span class="pn">Page ${i + 1}${S.site.buildings.length > 1 ? ' · ' + esc(bldName(S.site.buildings.find(b => b.id === bldIdOf(i)))) : ''}</span><span class="fn">${esc(lbl(i))}</span>${sub}${canRemove ? `<button class="ftx" type="button" data-remove="${i}" title="Remove this page (not needed)" aria-label="Remove page ${i + 1}">×</button>` : ''}</div>`; }).join('')
+    + (nRem ? `<button class="fremchip" type="button" id="bShowRem">${showRemoved ? 'Hide removed pages' : `${nRem} page${nRem > 1 ? 's' : ''} removed · Show`}</button>` : '');
+}
+async function removePage(i) {
+  if (livePages().length <= 1) { toast('At least one page has to stay.'); return; }
+  const n = S.polys.filter(p => p.page === i).length;
+  if (n && !(await ask(`Remove ${lbl(i)}?`, `This page has ${n} traced area${n > 1 ? 's' : ''}. ${n > 1 ? 'They' : 'It'} will be removed too. You can undo this with Ctrl+Z.`, 'Remove page'))) return;
+  mutate(() => { S.pages[i].removed = true; S.polys = S.polys.filter(p => p.page !== i); });
+  if (i === cur) { const lp = livePages(); await showPage(lp.find(k => k > i) ?? lp[lp.length - 1]); } else renderFloors();
+  toast(`${lbl(i)} removed. Show removed pages from the floor tabs to bring it back.`);
+}
+function restorePage(i) { mutate(() => { S.pages[i].removed = false; }); if (!S.pages.some(p => p.removed)) showRemoved = false; renderFloors(); toast(`${lbl(i)} restored.`); }
+$('#floors').addEventListener('click', e => {
+  const rm = e.target.closest('[data-remove]'); if (rm) { e.stopPropagation(); removePage(+rm.dataset.remove); return; }
+  const rs = e.target.closest('[data-restore]'); if (rs) { restorePage(+rs.dataset.restore); return; }
+  if (e.target.closest('#bShowRem')) { showRemoved = !showRemoved; renderFloors(); return; }
+  const b = e.target.closest('.ftab'); if (!b || b.classList.contains('removed')) return; if (sumOpen) setSumView(false); if (+b.dataset.pg !== cur) showPage(+b.dataset.pg); });
+$('#floors').addEventListener('keydown', e => { const b = e.target.closest('.ftab'); if (b && !b.classList.contains('removed') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (+b.dataset.pg !== cur) showPage(+b.dataset.pg); } });
+let lastIssues = [];
+async function goIssue(x) {
+  if (!x) return;
+  if (x.type === 'sign') { openTab('sign'); return; }
+  if (x.type === 'scale' || x.type === 'calib') { if (x.page != null && x.page !== cur) await showPage(x.page); openTab('measure'); scaleOpen = true; renderScale(); return; }
+  if (x.type === 'prev' || x.type === 'bld') { if (x.page != null && x.page !== cur) await showPage(x.page); openTab('site'); return; }
+  if (x.page != null && x.page !== cur) await showPage(x.page);
+  if (x.ids && x.ids.length) { sel = x.ids[0]; selV = -1; if (tool !== 'select') setTool('select'); renderList(); requestDraw(); }
+}
+$('#warns').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if (li) goIssue(lastIssues[+li.dataset.i]); });
+function renderList() {
+  const ul = $('#list');
+  const itemHtml = p => `<li class="item ${p.kind === 'inc' ? '' : p.kind} ${p.id === sel ? 'sel' : ''}" data-id="${p.id}">
+    <span class="sw"></span><input class="nm" value="${esc(p.name)}" aria-label="Area name" maxlength="60"${p.kind === 'unc' ? ' list="uncSug"' : ''}><span class="ar"></span>
+    <div class="opts"><select class="mini kind-${p.kind}" data-act="kind" aria-label="Area type" title="Area type">${['inc', 'exc', 'unc', 'bnd'].map(k => `<option value="${k}"${p.kind === k ? ' selected' : ''}>${KIND_NAME[k]}</option>`).join('')}</select>
+      ${p.kind === 'inc' || p.kind === 'exc' ? `<select class="mini" data-act="bench" aria-label="Benchmark category" title="Benchmark category">${(benchIdx().includes(p.bench || 0) ? benchIdx() : benchIdx().concat([p.bench || 0])).map(i => `<option value="${i}"${(p.bench || 0) === i ? ' selected' : ''}>${esc(benchName(i))}</option>`).join('')}</select>` : ''}
+      <button class="mini" data-act="del" title="Delete area" aria-label="Delete ${esc(p.name)}" style="margin-left:auto"><svg class="i"><use href="#i-trash"/></svg></button></div>
+    <div class="sub"><span class="meta"></span></div></li>`;
+  if (S.pages.length > 1) ul.innerHTML = S.pages.map((pg, i) => { if (pg.removed) return ''; const ps = S.polys.filter(p => p.page === i); if (!ps.length) return ''; return `<li class="ghead" data-pg="${i}">${esc(lbl(i))}<span data-fsub="${i}"></span></li>` + ps.map(itemHtml).join(''); }).join('');
+  else ul.innerHTML = S.polys.map(itemHtml).join('');
+  $('#listEmpty').hidden = S.polys.length > 0;
+  updateNumbers();
+}
+$('#list').addEventListener('click', async e => {
+  const gh = e.target.closest('.ghead'); if (gh) { if (+gh.dataset.pg !== cur) showPage(+gh.dataset.pg); return; }
+  const li = e.target.closest('.item'); if (!li) return; const id = +li.dataset.id, p = S.polys.find(q => q.id === id); if (!p) return;
+  const act = e.target.closest('[data-act]');
+  if (act && act.dataset.act === 'del') { sel = id; selV = -1; deleteSel(); return; }
+  if (act && act.tagName === 'SELECT') return;
+  if (sel !== id) { sel = id; selV = -1; if (p.page !== cur) { await showPage(p.page); sel = id; } document.querySelectorAll('.item').forEach(x => x.classList.toggle('sel', +x.dataset.id === id)); if (tool !== 'select') setTool('select'); requestDraw(); }
+});
+let nameBefore = null;
+$('#list').addEventListener('focusin', e => { if (e.target.classList.contains('nm')) nameBefore = snap(); });
+$('#list').addEventListener('input', e => { if (!e.target.classList.contains('nm')) return; const p = S.polys.find(q => q.id === +e.target.closest('.item').dataset.id); if (p) { p.name = e.target.value || 'Untitled'; requestDraw(); } });
+$('#list').addEventListener('change', e => {
+  const t = e.target;
+  if (t.classList.contains('nm') && nameBefore) { commit(nameBefore); nameBefore = null; updUndo(); return; }
+  const li = t.closest('.item'), p = li && S.polys.find(q => q.id === +li.dataset.id); if (!p) return;
+  if (t.dataset.act === 'kind') { mutate(() => { p.kind = t.value; }); }
+  else if (t.dataset.act === 'bench') { lastBench = +t.value; mutate(() => { p.bench = +t.value; }); }
+});
+$('#list').addEventListener('keydown', e => { if (e.target.classList.contains('nm') && e.key === 'Enter') e.target.blur(); });
+
+function renderScale() {
+  const box = $('#scaleBox');
+  if (!S.file) { box.innerHTML = '<p class="hintp">Open a drawing first.</p>'; return; }
+  const pg = S.pages[cur], c = pg.calib, isPdf = S.file.type === 'pdf', u = unitName();
+  let h = `<div class="rcol"><div class="rg-cap">Current scale${S.pages.length > 1 ? ' · ' + esc(lbl(cur)) : ''}</div>`;
+  if (c) {
+    h += `<span class="chip ok">Calibrated · ${c.method === 'two' ? 'two-point' : c.method === 'copy' ? 'copied from ' + esc(lbl(c.from)) : '1:' + nf(c.n, c.n % 1 ? 2 : 0) + ' drawing scale'}</span><dl class="kv">`;
+    h += `<div><dt>Drawing units per metre</dt><dd>${nf(1 / c.mpu, 3)} ${u}</dd></div>`;
+    const eq = equivScale(c); if (eq) h += `<div><dt>Equivalent scale</dt><dd>1:${nf(eq.n, 1)} ${eq.note}</dd></div>`;
+    if (c.method === 'two') { const len = Math.hypot(c.p2[0] - c.p1[0], c.p2[1] - c.p1[1]); h += `<div><dt>Reference</dt><dd>${nf(c.dist, c.unit === 'mm' ? 0 : 3)} ${c.unit} over ${nf(len, 1)} ${u}</dd></div><div><dt>Click precision</dt><dd>± ${nf(calPrecision(c) * 100, 2)} %</dd></div>`; }
+    if (c.method === 'copy') h += `<div><dt>Source</dt><dd>${esc(c.srcDesc)}</dd></div>`;
+    h += '</dl>';
+    if (S.pages.length > 1) h += `<button class="btn ${scaleOpen ? 'primary' : ''}" id="bAll" title="Use this scale on every page with the same sheet size">Apply this scale to all floors</button>`;
+  } else h += '<span class="chip warn">Not calibrated</span><p class="hintp">Set the scale before relying on any area. Two-point calibration on a long, dimensioned wall is the most reliable method.</p>';
+
+  h += '</div><div class="rcol"><div class="rg-cap">Set the scale</div>';
+  if (tool === 'calib' && calibPts.length === 2) {
+    const a = calibPts[0].pt, b = calibPts[1].pt, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    h += `<div class="form cal"><p class="note">Line drawn: <b>${nf(len, 2)} ${u}</b> on the drawing.${S.polys.some(p => p.page === cur) ? ' Existing areas on this page will be recalculated.' : ''}</p>
+      <label for="distIn">Real length of this line</label><div class="row" style="flex-wrap:nowrap"><input class="in" id="distIn" inputmode="decimal" autocomplete="off" placeholder="${lastDistUnit === 'mm' ? 'e.g. 5000' : 'e.g. 5.000'}" style="flex:1">
+      <select class="in" id="distU" style="width:72px"><option value="m"${lastDistUnit === 'm' ? ' selected' : ''}>m</option><option value="mm"${lastDistUnit === 'mm' ? ' selected' : ''}>mm</option></select></div>
+      <div class="row"><button class="btn primary" id="calApply">Apply scale</button><button class="btn" id="calCancel">Cancel</button></div></div>`;
+  } else if (tool === 'calib') h += `<p class="hintp">${calibPts.length ? 'Now click the <b>second end</b> of the dimension.' : 'Click the <b>first end</b> of a dimension you know on the drawing. Zoom in first for accuracy.'}</p>`;
+
+  h += `<div class="row"><button class="btn ${tool === 'calib' ? 'on' : ''}" id="bTwo">${c ? 'Recalibrate' : 'Two-point calibration'}</button><button class="btn ${manualOpen ? 'on' : ''}" id="bMan">Enter drawing scale</button></div>`;
+  if (manualOpen) {
+    const presets = [20, 50, 100, 200, 250, 500, 1000, 1250, 2500];
+    const curN = c && c.method === 'scale' ? c.n : 100, custom = !presets.includes(curN);
+    h += `<div class="form"><label>Drawing scale<div class="row" style="flex-wrap:nowrap"><select class="in" id="scSel" style="flex:1">${presets.map(n => `<option value="${n}"${!custom && n === curN ? ' selected' : ''}>1:${n}</option>`).join('')}<option value="custom"${custom ? ' selected' : ''}>Custom…</option></select>
+      <input class="in" id="scCus" inputmode="decimal" placeholder="e.g. 75" value="${custom ? curN : ''}" style="width:90px" ${custom ? '' : 'hidden'}></div></label>`;
+    if (isPdf) { const wmm = pg.w * 25.4 / 72, hmm = pg.h * 25.4 / 72, nm = sheetName(wmm, hmm); h += `<p class="note">Sheet ${nf(wmm, 0)} × ${nf(hmm, 0)} mm${nm ? ' (' + nm + ')' : ''}. This only holds if the PDF is at its original sheet size and was not shrunk to fit when exported. Check a known dimension afterwards.</p>`; }
+    else { const d = (c && c.dpi) || S.file.dpi; h += `<label>Image resolution (dpi)<input class="in" id="dpiIn" inputmode="decimal" value="${d ? nf(d, 0).replace(/,/g, '') : ''}" placeholder="e.g. 300"></label><p class="note">${S.file.dpi ? 'Read from the image file' + (Math.round(S.file.dpi) === 72 || Math.round(S.file.dpi) === 96 ? '. 72 and 96 dpi are often placeholder values; use two-point calibration if unsure.' : '.') : 'Not stored in this image. Enter the scan resolution, or use two-point calibration instead.'}</p>`; }
+    h += `<div class="row"><button class="btn primary" id="scApply">Apply scale</button></div></div>`;
+  }
+  h += '</div><div class="rcol"><div class="rg-cap">Units &amp; checks</div>';
+  h += `<div class="row" style="justify-content:space-between"><span class="note">Show lengths in</span><span class="row"><button class="mini ${S.lenUnit === 'm' ? 'act' : ''}" id="uM">m</button><button class="mini ${S.lenUnit === 'mm' ? 'act' : ''}" id="uMM">mm</button></span></div>`;
+  if (measurePts.length === 2) { const L = Math.hypot(measurePts[1][0] - measurePts[0][0], measurePts[1][1] - measurePts[0][1]); h += `<dl class="kv"><div><dt>Checked dimension</dt><dd>${c ? fL(L * c.mpu) : nf(L, 1) + ' ' + u}</dd></div></dl>`; }
+  else h += '<p class="note">Use <b>Check dim.</b> (M) to measure a known dimension and confirm the scale.</p>';
+  if (c) h += '<div class="row"><button class="mini" type="button" id="scHide">Hide scale panel</button></div>';
+  h += '</div>';
+  box.innerHTML = h; syncScaleStrip();
+  const on = (id, ev, fn) => { const el = $('#' + id); if (el) el.addEventListener(ev, fn); };
+  on('scHide', 'click', () => { scaleOpen = false; manualOpen = false; if (tool === 'calib') setTool('select'); syncScaleStrip(); });
+  on('bAll', 'click', applyAll);
+  on('bTwo', 'click', () => { calibPts = []; setTool('calib'); });
+  on('bMan', 'click', () => { manualOpen = !manualOpen; scaleClosed = false; renderScale(); });
+  on('calApply', 'click', applyTwoPoint);
+  on('calCancel', 'click', () => { calibPts = []; renderScale(); requestDraw(); });
+  on('distIn', 'keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyTwoPoint(); } if (e.key === 'Escape') { calibPts = []; renderScale(); requestDraw(); } });
+  on('distU', 'change', e => { lastDistUnit = e.target.value; });
+  on('scSel', 'change', e => { $('#scCus').hidden = e.target.value !== 'custom'; if (e.target.value === 'custom') $('#scCus').focus(); });
+  on('scApply', 'click', applyManual);
+  on('uM', 'click', () => { S.lenUnit = 'm'; renderScale(); updateNumbers(); requestDraw(); });
+  on('uMM', 'click', () => { S.lenUnit = 'mm'; renderScale(); updateNumbers(); requestDraw(); });
+}
+function applyTwoPoint() {
+  if (calibPts.length !== 2) return;
+  const inp = $('#distIn'), unit = ($('#distU') || {}).value || 'm', v = parseNum(inp ? inp.value : '');
+  if (!(v > 0)) { toast('Enter the real length of the line, for example 5.000 m or 5000 mm.'); if (inp) inp.focus(); return; }
+  const a = calibPts[0].pt, b = calibPts[1].pt, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (len <= 0) { toast('The two points are in the same place. Click two separate points.'); return; }
+  const metres = unit === 'mm' ? v / 1000 : v; lastDistUnit = unit;
+  const zoom = Math.min(calibPts[0].z, calibPts[1].z);
+  mutate(() => { S.pages[cur].calib = { method: 'two', mpu: metres / len, p1: a.slice(), p2: b.slice(), dist: v, unit, zoom }; });
+  calibPts = []; scaleOpen = S.pages.length > 1; setTool('select');
+  toast(`Scale set: ${nf(len / metres, 3)} ${unitName()} per metre.`);
+}
+function applyAll() {
+  const c = S.pages[cur].calib; if (!c) return;
+  const src = S.pages[cur], tgt = [], skip = [];
+  S.pages.forEach((pg, i) => { if (i === cur || pg.removed) return; (Math.abs(pg.w - src.w) < 1.5 && Math.abs(pg.h - src.h) < 1.5 ? tgt : skip).push(i); });
+  if (!tgt.length) { toast('No other pages share this sheet size, so the scale was not copied. Calibrate those pages separately.'); return; }
+  const base = c.method === 'copy' ? { from: c.from, srcDesc: c.srcDesc } : { from: cur, srcDesc: calDesc(c) };
+  mutate(() => { tgt.forEach(i => { S.pages[i].calib = { method: 'copy', mpu: c.mpu, dpi: c.dpi || null, from: base.from, srcDesc: base.srcDesc }; }); });
+  toast(`Scale applied to ${tgt.length} other floor${tgt.length > 1 ? 's' : ''}.${skip.length ? ` Skipped ${skip.map(lbl).join(', ')} (different sheet size).` : ''} Check one dimension on each floor.`);
+}
+function applyManual() {
+  const sv = $('#scSel').value, n = sv === 'custom' ? parseNum($('#scCus').value) : +sv;
+  if (!(n > 0)) { toast('Enter the drawing scale, for example 100 for 1:100.'); return; }
+  let mpu, dpi = null;
+  if (S.file.type === 'pdf') mpu = n * PT_M;
+  else { dpi = parseNum($('#dpiIn').value); if (!(dpi > 0)) { toast('Enter the image resolution in dpi, or use two-point calibration.'); $('#dpiIn').focus(); return; } mpu = n * 0.0254 / dpi; }
+  mutate(() => { S.pages[cur].calib = { method: 'scale', mpu, n, dpi }; });
+  manualOpen = false; scaleOpen = S.pages.length > 1; if (tool === 'calib') setTool('select'); renderScale(); toast(`Scale set to 1:${nf(n, n % 1 ? 2 : 0)}. Check one known dimension with Check dim. (M).`);
+}
+function renderDrawInfo() {
+  const box = $('#drawInfo');
+  if (!S.file) { box.innerHTML = '<p class="hintp">No drawing open.</p>'; return; }
+  const pg = S.pages[cur], isPdf = S.file.type === 'pdf';
+  let h = `<dl class="kv"><div><dt>File</dt><dd style="font-family:var(--f-ui);overflow-wrap:anywhere">${esc(S.file.name)}</dd></div>`;
+  if (isPdf) { const wmm = pg.w * 25.4 / 72, hmm = pg.h * 25.4 / 72, nm = sheetName(wmm, hmm); h += `<div><dt>Sheet</dt><dd>${nf(wmm, 0)} × ${nf(hmm, 0)} mm${nm ? ' · ' + nm.split(' ')[0] : ''}</dd></div>`; }
+  else h += `<div><dt>Image</dt><dd>${nf(pg.w, 0)} × ${nf(pg.h, 0)} px${S.file.dpi ? ' · ' + nf(S.file.dpi, 0) + ' dpi' : ''}</dd></div>`;
+  h += `<div><dt>View rotation</dt><dd>${V.r * 90}°</dd></div></dl>`;
+  if (S.pages.length > 1) h += `<p class="note">Page ${cur + 1} of ${S.pages.length}${S.pages.length - livePages().length ? ' (' + (S.pages.length - livePages().length) + ' removed)' : ''}. Each page is a separate floor with its own scale and subtotal. Switch floors with the floor tabs or Page Up / Page Down.</p>
+    <label class="fl">Floor / section name<input class="in txt" id="pgLabel" maxlength="50" value="${esc(S.pages[cur].label || '')}" placeholder="Page ${cur + 1}, e.g. Ground floor"></label>${livePages().length > 1 ? '<button class="btn" type="button" id="pgRemove">Remove this page</button>' : ''}`;
+  if (S.site.buildings.length > 1) h += `<label class="fl">Building for this ${S.pages.length > 1 ? 'floor' : 'drawing'}<select class="in txt" id="pgBld">${S.site.buildings.map(b => `<option value="${b.id}"${bldIdOf(cur) === b.id ? ' selected' : ''}>${esc(bldName(b))}</option>`).join('')}</select></label>`;
+  box.innerHTML = h;
+  const prb = $('#pgRemove'); if (prb) prb.addEventListener('click', () => removePage(cur));
+  const pb = $('#pgBld'); if (pb) pb.addEventListener('change', () => { S.pages[cur].bld = +pb.value; dirty = true; renderFloors(); updateNumbers(); });
+  const pl = $('#pgLabel');
+  if (pl) { pl.addEventListener('input', () => { S.pages[cur].label = pl.value.trim() || null; dirty = true; renderFloors(); document.querySelectorAll(`.ghead[data-pg="${cur}"]`).forEach(g => { g.firstChild.textContent = lbl(cur); }); updateNumbers(); }); pl.addEventListener('keydown', e => { if (e.key === 'Enter') pl.blur(); }); }
+}
+['building', 'ref', 'assessor'].forEach(k => { const el = $('#m' + k[0].toUpperCase() + k.slice(1)); el.addEventListener('input', () => { S.meta[k] = el.value; dirty = true; }); });
+function syncMeta() { $('#mBuilding').value = S.meta.building || ''; $('#mRef').value = S.meta.ref || ''; $('#mAssessor').value = S.meta.assessor || ''; $('#mDate').value = S.sign.date || ''; $('#mConfirm').checked = !!S.sign.confirm; sizePad(); renderSite(); }
+$('#mBuilding').addEventListener('input', () => { if (S.site.buildings.length === 1) { renderFloors(); renderBsum(); } });
+$('#mDate').addEventListener('change', e => { S.sign.date = e.target.value; dirty = true; renderSumView(); });
+$('#mConfirm').addEventListener('change', e => { S.sign.confirm = e.target.checked; dirty = true; renderSumView(); updateNumbers(); });
+['mBuilding', 'mRef', 'mAssessor'].forEach(id => $('#' + id).addEventListener('input', () => renderSumView()));
+const pad = $('#sigPad'); let padCtx = null, padDraw = false, padLast = null;
+function sizePad() {
+  const r = pad.getBoundingClientRect(); if (!r.width) return; const d = window.devicePixelRatio || 1;
+  pad.width = Math.round(r.width * d); pad.height = Math.round(r.height * d); padCtx = pad.getContext('2d'); padCtx.setTransform(d, 0, 0, d, 0, 0);
+  padCtx.lineWidth = 2.2; padCtx.lineCap = 'round'; padCtx.lineJoin = 'round'; padCtx.strokeStyle = '#1E293B';
+  if (S.sign.sig) { const im = new Image(); im.onload = () => padCtx.drawImage(im, 0, 0, r.width, r.height); im.src = S.sign.sig; }
+}
+const padPt = e => { const r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+pad.addEventListener('pointerdown', e => { if (!padCtx) sizePad(); padDraw = true; padLast = padPt(e); try { pad.setPointerCapture(e.pointerId); } catch (err) {} padCtx.beginPath(); padCtx.arc(padLast[0], padLast[1], 1, 0, Math.PI * 2); padCtx.fillStyle = '#1E293B'; padCtx.fill(); });
+pad.addEventListener('pointermove', e => { if (!padDraw) return; const q = padPt(e); padCtx.beginPath(); padCtx.moveTo(padLast[0], padLast[1]); padCtx.lineTo(q[0], q[1]); padCtx.stroke(); padLast = q; });
+const padEnd = () => { if (!padDraw) return; padDraw = false; S.sign.sig = pad.toDataURL('image/png'); if (!S.sign.date) { S.sign.date = new Date().toISOString().slice(0, 10); $('#mDate').value = S.sign.date; } dirty = true; renderSumView(); };
+pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
+$('#sigClear').addEventListener('click', () => { S.sign.sig = null; dirty = true; renderSumView(); if (padCtx) padCtx.clearRect(0, 0, pad.width, pad.height); });
+new ResizeObserver(() => sizePad()).observe(pad);
+const fDate = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+
+/* ---------- busy, toast, modal ---------- */
+function setBusy(t) { $('#busy').hidden = !t; if (t) $('#busyT').textContent = t; }
+let toastT = 0; function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 4200); }
+function ask(title, text, ok, list, cancel) {
+  return new Promise(res => { $('#mT').textContent = title; $('#mX').textContent = text; $('#mYes').textContent = ok || 'OK'; $('#mNo').textContent = cancel || 'Cancel';
+    const ml = $('#mL'); ml.hidden = !(list && list.length); ml.innerHTML = (list || []).map(t => `<li>${esc(t)}</li>`).join('');
+    $('#modal').hidden = false; $('#mYes').focus();
+    const done = v => { $('#modal').hidden = true; $('#mYes').onclick = $('#mNo').onclick = null; res(v); };
+    $('#mYes').onclick = () => done(true); $('#mNo').onclick = () => done(false); });
+}
+
+/* ---------- save / load / export ---------- */
+let dlCap; async function getDl() { if (dlCap !== undefined) return dlCap; try { dlCap = (window.claude && window.claude.use) ? await window.claude.use('downloads') : null; } catch (e) { dlCap = null; } return dlCap; }
+async function saveFile(name, data, mime) {
+  const d = await getDl();
+  if (d) {
+    try { await d.save({ filename: name, data }); toast('Saved ' + name); return true; }
+    catch (err) { const code = err && err.code; if (code === 'declined') { toast('Save cancelled.'); return false; } if (code === 'rate_limited') { toast('A save prompt is already open.'); return false; } if (!['unavailable', 'not_granted', 'capability_disabled', 'capability_removed'].includes(code)) { toast('Could not save: ' + ((err && err.message) || code)); return false; } }
+  }
+  const blob = data instanceof Blob ? data : new Blob([data], { type: mime }); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('Downloaded ' + name); return true;
+}
+function bufToB64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function b64ToBuf(b) { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
+const baseName = () => (S.file ? S.file.name.replace(/\.[^.]+$/, '') : 'floor-plan').replace(/[^\w\- ]+/g, '').trim() || 'floor-plan';
+
+async function saveProject() {
+  if (!S.file) { toast('Open a drawing first.'); return; }
+  setBusy('Preparing project…');
+  let json;
+  try { json = JSON.stringify({ app: APP_ID, version: 1, savedAt: new Date().toISOString(), file: { name: S.file.name, type: S.file.type, mime: S.file.mime, data: bufToB64(S.file.buf) }, pages: S.pages.map(p => ({ w: p.w, h: p.h, calib: p.calib, rot: p.rot || 0, label: p.label || null, bld: p.bld || null, removed: !!p.removed })), polys: S.polys, nextId: S.nextId, meta: S.meta, site: S.site, sign: S.sign, lenUnit: S.lenUnit, page: cur }); }
+  finally { setBusy(null); }
+  if (await saveFile(baseName() + ' - area measure.json', json, 'application/json')) dirty = false;
+}
+async function loadProject(f) {
+  if (!f) return;
+  if (dirty && !S.isSample && S.polys.length && !(await ask('Open a saved project?', 'Your current areas will be replaced. Save them first if you need to keep them.', 'Open project'))) return;
+  let o; try { o = JSON.parse(await f.text()); } catch (e) { toast('This file is not a readable project file.'); return; }
+  if (!o || o.app !== APP_ID || !o.file || !o.file.data) { toast('This is not a Floor Area Measure project file.'); return; }
+  try { await commitDrawing({ name: o.file.name, type: o.file.type, mime: o.file.mime, buf: b64ToBuf(o.file.data) }); }
+  catch (e) { toast('Could not open the drawing stored in this project: ' + (e.message || e)); return; }
+  (o.pages || []).forEach((p, i) => { if (S.pages[i]) { S.pages[i].calib = p.calib || null; S.pages[i].rot = p.rot || 0; if ('label' in p) S.pages[i].label = p.label || null; if (p.bld) S.pages[i].bld = p.bld; if (p.removed) S.pages[i].removed = true; } });
+  S.site = Object.assign(defSite(), o.site || {}); if (!Array.isArray(S.site.buildings) || !S.site.buildings.length) S.site.buildings = defSite().buildings; S.site.bench = [0, 1, 2, 3].map(i => (S.site.bench && S.site.bench[i]) || ''); S.site.energy = Object.assign(defSite().energy, S.site.energy || {}); S.site.nextB = Math.max(S.site.nextB || 2, ...S.site.buildings.map(b => b.id + 1));
+  S.sign = Object.assign({ date: '', sig: null, confirm: false }, o.sign || {});
+  S.polys = (o.polys || []).filter(p => Array.isArray(p.pts) && p.pts.length >= 3 && p.page < S.pages.length);
+  S.nextId = o.nextId || (Math.max(0, ...S.polys.map(p => p.id)) + 1); S.meta = Object.assign({ building: '', ref: '', assessor: '' }, o.meta || {}); S.lenUnit = o.lenUnit === 'mm' ? 'mm' : 'm';
+  S.isSample = false; undoS.length = 0; redoS.length = 0; dirty = false; syncMeta();
+  let pgi = Math.min(o.page || 0, S.pages.length - 1); if (!live(pgi)) pgi = livePages()[0] || 0;
+  await showPage(pgi); setTool('select');
+  toast(`Opened ${f.name} · ${S.polys.length} area${S.polys.length === 1 ? '' : 's'}`);
+}
+
+async function renderAnnotated(i, maxSide) {
+  const pg = S.pages[i], s = Math.min(maxSide / Math.max(pg.w, pg.h), 8);
+  const c = document.createElement('canvas'); c.width = Math.round(pg.w * s); c.height = Math.round(pg.h * s);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  if (S.file.type === 'pdf') { const p = await pdfDoc.getPage(i + 1); await p.render({ canvasContext: g, viewport: p.getViewport({ scale: s }) }).promise; }
+  else { g.imageSmoothingQuality = 'high'; g.drawImage(imgBmp, 0, 0, c.width, c.height); }
+  drawOverlays(g, i, (x, y) => [x * s, y * s], Math.max(1, Math.max(c.width, c.height) / 1500), false);
+  return c;
+}
+function rowsForExport() {
+  return S.polys.slice().sort((a, b) => a.page - b.page).map(p => ({ p, a: areaM(p), per: perimM(p), cal: S.pages[p.page].calib }));
+}
+function calDesc(c) { if (!c) return 'Not calibrated'; if (c.method === 'copy') return `Copied from ${lbl(c.from)} (${c.srcDesc})`; return c.method === 'two' ? `Two-point: ${nf(c.dist, c.unit === 'mm' ? 0 : 3)} ${c.unit} reference` : `Drawing scale 1:${nf(c.n, c.n % 1 ? 2 : 0)}${c.dpi ? ' at ' + nf(c.dpi, 0) + ' dpi' : ' at sheet size'}`; }
+
+let splitReady = null;
+function ensureSplit() { if (!splitReady) { splitReady = Promise.all([loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'), loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')]); splitReady.catch(() => { splitReady = null; }); } return splitReady; }
+const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim() || 'page';
+async function exportSplit(all) {
+  if (!S.file || S.file.type !== 'pdf') { toast('Splitting needs a PDF drawing.'); return; }
+  setBusy(all ? 'Splitting PDF by floor…' : 'Extracting this floor…'); let data, name;
+  try {
+    await ensureSplit();
+    const src = await window.PDFLib.PDFDocument.load(S.file.buf.slice(0), { ignoreEncryption: true });
+    const nn = i => String(i + 1).padStart(2, '0');
+    const one = async i => { const out = await window.PDFLib.PDFDocument.create(); const [pg] = await out.copyPages(src, [i]); out.addPage(pg); out.setTitle(lbl(i)); return out.save(); };
+    if (all) { const zip = new window.JSZip(); for (const i of livePages()) { setBusy(`Splitting page ${i + 1} of ${S.pages.length}…`); zip.file(`${nn(i)} - ${safeName(lbl(i))}.pdf`, await one(i)); } data = await zip.generateAsync({ type: 'blob' }); name = `${baseName()} - split by floor.zip`; }
+    else { data = new Blob([await one(cur)], { type: 'application/pdf' }); name = `${baseName()} - ${nn(cur)} ${safeName(lbl(cur))}.pdf`; }
+  } catch (e) { console.error(e); setBusy(null); toast('Could not split the PDF: ' + (e.message || e)); return; }
+  setBusy(null);
+  await saveFile(name, data, all ? 'application/zip' : 'application/pdf');
+}
+let docxReady = null;
+function ensureDocx() { if (!docxReady) { docxReady = loadScript('https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js'); docxReady.catch(() => { docxReady = null; }); } return docxReady; }
+const b64Bytes = dataUrl => { const bin = atob(dataUrl.split(',')[1]); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+async function exportDocx() {
+  setBusy('Building Word report…'); let blob;
+  try {
+    await ensureDocx(); const D = window.docx;
+    const TEAL = '2D6A6A', SOFT = 'EAF3F1', INK = '1E293B', MUT = '64748B', AMB = 'B45309', VIO = '6D28D9', LINE = 'E2E8F0', FONT = 'Segoe UI';
+    const run = (text, o = {}) => new D.TextRun({ text: String(text), font: FONT, size: o.size || 19, bold: !!o.bold, italics: !!o.it, color: o.color || INK });
+    const para = (kids, o = {}) => new D.Paragraph({ children: Array.isArray(kids) ? kids : [kids], alignment: o.align, keepNext: !!o.keepNext, spacing: { before: o.before || 0, after: o.after != null ? o.after : 80 } });
+    const H = (t, o = {}) => para(run(t, { bold: true, size: o.size || 26, color: TEAL }), { before: o.before != null ? o.before : 260, after: 100, keepNext: true });
+    const note = t => para(run(t, { size: 17, color: MUT }), { after: 100 });
+    const cell = (t, o = {}) => new D.TableCell({ children: [para(run(t, { bold: o.bold || o.head, color: o.head ? 'FFFFFF' : (o.color || INK), size: o.size || 18 }), { align: o.right ? D.AlignmentType.RIGHT : D.AlignmentType.LEFT, after: 0 })], shading: (o.head || o.fill) ? { type: D.ShadingType.CLEAR, color: 'auto', fill: o.head ? TEAL : o.fill } : undefined, margins: { top: 70, bottom: 70, left: 110, right: 110 }, columnSpan: o.span, verticalAlign: D.VerticalAlign.CENTER });
+    const bd = { style: D.BorderStyle.SINGLE, size: 4, color: LINE }, none = { style: D.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+    const table = (head, rows, widths) => new D.Table({ width: { size: 100, type: D.WidthType.PERCENTAGE }, columnWidths: widths, borders: { top: bd, bottom: bd, left: bd, right: bd, insideHorizontal: bd, insideVertical: none },
+      rows: [new D.TableRow({ tableHeader: true, children: head.map(h => cell(h.t, { head: true, right: h.r })) })].concat(rows.map(r => new D.TableRow({ cantSplit: true, children: r.map(c => cell(c.t, c)) }))) });
+    const m2 = v => `${fA(v)} m²`;
+    const W = 9906; // usable width (twips), A4 portrait with 25 mm margins
+    const kids = [];
+    // title + details
+    kids.push(para(run('Floor Area Measurement Report', { bold: true, size: 36, color: TEAL }), { after: 60 }));
+    kids.push(para(run('Non-Domestic Energy Assessment · Display Energy Certificate', { size: 19, color: MUT }), { after: 200 }));
+    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    kids.push(new D.Table({ width: { size: 100, type: D.WidthType.PERCENTAGE }, columnWidths: [2600, W - 2600], borders: { top: none, bottom: none, left: none, right: none, insideHorizontal: { style: D.BorderStyle.SINGLE, size: 2, color: LINE }, insideVertical: none },
+      rows: [['Site', S.meta.building || '-'], ['Job reference', S.meta.ref || '-'], ['Assessor', S.meta.assessor || '-'], ['Source drawing', S.file.name], ['Report date', date]].map(([k, v]) => new D.TableRow({ children: [cell(k, { color: MUT }), cell(v, { bold: true })] })) }));
+    // headline figures
+    const t = totals(), sums = S.site.buildings.map(bldSummary), multiB = S.site.buildings.length > 1;
+    const siteTufa = sums.reduce((a, x) => a + (x.measured ? x.tufa : (x.manual || 0)), 0);
+    kids.push(H('Summary'));
+    kids.push(table([{ t: multiB ? 'Site TUFA' : 'TUFA' }, { t: 'Included' }, { t: 'Voids' }, { t: 'Unconditioned (recorded)' }],
+      [[{ t: m2(siteTufa), bold: true, color: TEAL, size: 24 }, { t: m2(t.inc), size: 22 }, { t: t.nExc ? '- ' + m2(t.exc) : '-', color: AMB, size: 22 }, { t: t.nUnc ? m2(t.unc) : '-', color: VIO, size: 22 }]], [W / 4, W / 4, W / 4, W / 4]));
+    // per building
+    for (const sm of sums) {
+      if (!sm.measured && !sm.manual && !sm.prev && !sm.unc.length) continue;
+      kids.push(H(multiB ? bldName(sm.b) : 'Area by benchmark category'));
+      if (sm.measured) {
+        const rows = sm.rows.map(r => [{ t: lbl(r.page) }, { t: benchName(r.bench) }, { t: m2(r.gross), right: true }, { t: r.void ? '- ' + m2(r.void) : '-', right: true, color: AMB }, { t: m2(r.net), right: true }]);
+        Object.keys(sm.byBench).forEach(k => rows.push([{ t: 'Total', bold: true, fill: 'F8FAFC' }, { t: benchName(+k), bold: true, fill: 'F8FAFC' }, { t: '', fill: 'F8FAFC' }, { t: '', fill: 'F8FAFC' }, { t: m2(sm.byBench[k]), right: true, bold: true, fill: 'F8FAFC' }]));
+        rows.push([{ t: 'TUFA (total useful floor area)', bold: true, color: TEAL, fill: SOFT, span: 4 }, { t: m2(sm.tufa), right: true, bold: true, color: TEAL, fill: SOFT }]);
+        kids.push(table([{ t: 'Floor' }, { t: 'Benchmark category' }, { t: 'Measured area', r: true }, { t: 'Void area', r: true }, { t: 'Benchmark area', r: true }], rows, [1900, 2700, 1770, 1700, 1836]));
+      } else if (sm.manual) kids.push(para([run('Area entered (measured elsewhere): ', { color: MUT }), run(m2(sm.manual), { bold: true })]));
+      if (sm.prev) kids.push(para([run('Area on previous DEC: ', { color: MUT }), run(m2(sm.prev), { bold: true })].concat(sm.diff != null ? [run('   Difference: ', { color: MUT }), run(`${sm.diff >= 0 ? '+' : '-'}${m2(Math.abs(sm.tufa - sm.prev))} (${sm.diff >= 0 ? '+' : '-'}${nf(Math.abs(sm.diff) * 100, 1)} %)`, { bold: true, color: Math.abs(sm.diff) > PREV_TOL ? AMB : '059669' })] : []), { before: 120 }));
+      if (sm.unc.length) {
+        kids.push(para(run('Unconditioned areas: recorded only, not added to or subtracted from the TUFA', { bold: true, size: 17, color: MUT }), { before: 160, after: 80, keepNext: true }));
+        kids.push(table([{ t: 'Floor' }, { t: 'Type' }, { t: 'Area', r: true }], sm.unc.map(u => [{ t: lbl(u.page) }, { t: u.name }, { t: m2(u.area), right: true, color: VIO }]).concat([[{ t: 'Total unconditioned', bold: true, span: 2, fill: 'F8FAFC' }, { t: m2(sm.uncTot), right: true, bold: true, color: VIO, fill: 'F8FAFC' }]]), [2600, 4706, 2600]));
+      }
+    }
+    if (multiB) {
+      const sp = energySplit(), ec = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
+      kids.push(H('Energy split by floor area'));
+      kids.push(note('Site totals apportioned to each building in proportion to its floor area.'));
+      const wcol = Math.floor((W - 2600 - 1500 - 1100) / Math.max(1, ec.length));
+      kids.push(table([{ t: 'Building' }, { t: 'Floor area', r: true }, { t: 'Share', r: true }].concat(ec.map(c => ({ t: c[1] + ' (kWh)', r: true }))),
+        sp.rows.map(r => [{ t: bldName(r.b) + (r.measured ? '' : r.manual ? ' (entered)' : '') }, { t: m2(r.splitArea), right: true }, { t: nf(r.share * 100, 1) + ' %', right: true }].concat(ec.map(c => ({ t: nf(r[c[0]], 0), right: true }))))
+          .concat([[{ t: 'Site total', bold: true, color: TEAL, fill: SOFT }, { t: m2(sp.total), right: true, bold: true, color: TEAL, fill: SOFT }, { t: sp.total ? '100 %' : '-', right: true, bold: true, color: TEAL, fill: SOFT }].concat(ec.map(c => ({ t: nf(sp.E[c[0]], 0), right: true, bold: true, color: TEAL, fill: SOFT })))]),
+        [2600, 1500, 1100].concat(ec.map(() => wcol))));
+    }
+    // every traced area
+    kids.push(H('Traced areas'));
+    kids.push(table([{ t: 'Floor' }, { t: 'Name' }, { t: 'Type' }, { t: 'Benchmark' }, { t: 'Area', r: true }, { t: 'Perimeter', r: true }],
+      rowsForExport().map(r => [{ t: lbl(r.p.page) }, { t: r.p.name }, { t: { inc: 'Included', exc: 'Void', unc: 'Unconditioned', bnd: 'Boundary (ref.)' }[r.p.kind], color: r.p.kind === 'exc' ? AMB : r.p.kind === 'unc' ? VIO : INK }, { t: r.p.kind === 'inc' || r.p.kind === 'exc' ? benchName(r.p.bench || 0) : '-' }, { t: r.a == null ? 'no scale' : (r.p.kind === 'exc' ? '- ' : '') + m2(r.a), right: true }, { t: r.per == null ? '-' : fL(r.per), right: true }]),
+      [1500, 2250, 1300, 2000, 1500, 1356]));
+    // method
+    kids.push(H('Method and calibration'));
+    kids.push(para(run('Each area is a closed polygon traced on the drawing. Its area is calculated with the shoelace (Gauss) formula from the vertex coordinates in drawing units, then converted to square metres using the floor’s scale calibration. Values are rounded to two decimal places for display only. Benchmark area = included area − void area for that benchmark; TUFA = sum of benchmark areas. Unconditioned areas are listed for information and are not added to or subtracted from the TUFA.', { size: 18 }), { after: 120 }));
+    S.pages.forEach((pg, i) => { if (pg.removed || (!pg.calib && !S.polys.some(p => p.page === i))) return; const eq = pg.calib ? equivScale(pg.calib) : null; kids.push(para([run(`${S.pages.length > 1 ? lbl(i) + ' (page ' + (i + 1) + ')' : 'Calibration'}: `, { bold: true, size: 17 }), run(`${calDesc(pg.calib)}${pg.calib ? ` · ${nf(1 / pg.calib.mpu, 3)} ${unitName()} per metre${eq ? ' · equivalent 1:' + nf(eq.n, 1) + ' ' + eq.note : ''}${pg.calib.method === 'two' ? ' · click precision ±' + nf(calPrecision(pg.calib) * 100, 2) + ' %' : ''}` : ''}`, { size: 17, color: MUT })], { after: 40 })); });
+    const w = warnings();
+    if (w.length) { kids.push(H('Items to check', { size: 22 })); w.forEach(x => kids.push(para([run(`${ISSUE_TAG[x.type] || 'Check'}: `, { bold: true, color: AMB, size: 18 }), run(x.msg, { size: 18 })], { after: 60 }))); }
+    // sign-off
+    kids.push(H('Sign-off'));
+    const sigCell = S.sign.sig ? new D.TableCell({ children: [new D.Paragraph({ children: [new D.ImageRun({ data: b64Bytes(S.sign.sig), transformation: { width: 230, height: 76 } })] })], margins: { top: 80, bottom: 80, left: 110, right: 110 } }) : cell('Not signed', { color: AMB });
+    kids.push(new D.Table({ width: { size: 100, type: D.WidthType.PERCENTAGE }, columnWidths: [2600, W - 2600], borders: { top: bd, bottom: bd, left: bd, right: bd, insideHorizontal: bd, insideVertical: none },
+      rows: [new D.TableRow({ children: [cell('Assessor', { color: MUT, fill: SOFT }), cell(S.meta.assessor || 'Not entered', { bold: true })] }), new D.TableRow({ children: [cell('Date signed', { color: MUT, fill: SOFT }), cell(fDate(S.sign.date) || 'Not dated', { bold: true })] }),
+        new D.TableRow({ children: [cell('Declaration', { color: MUT, fill: SOFT }), cell(S.sign.confirm ? 'I confirm I measured these areas and checked them against the drawing dimensions.' : 'Not confirmed', { color: S.sign.confirm ? INK : AMB })] }),
+        new D.TableRow({ children: [cell('Signature', { color: MUT, fill: SOFT }), sigCell] })] }));
+    // drawings
+    const pagesWith = livePages().filter(i => S.polys.some(p => p.page === i));
+    for (const i of (pagesWith.length ? pagesWith : [cur])) {
+      setBusy(`Adding drawing ${S.pages.length > 1 ? lbl(i) : ''}…`);
+      const c = await renderAnnotated(i, 2400), png = c.toDataURL('image/png');
+      const maxW = 640, maxH = 820, r = Math.min(maxW / c.width, maxH / c.height);
+      kids.push(new D.Paragraph({ pageBreakBefore: true, keepNext: true, spacing: { after: 80 }, children: [run(`Traced boundaries${S.pages.length > 1 ? ' - ' + lbl(i) : ''}`, { bold: true, size: 26, color: TEAL })] }));
+      kids.push(note(`${S.file.name} · ${calDesc(S.pages[i].calib)}`));
+      kids.push(new D.Paragraph({ alignment: D.AlignmentType.CENTER, children: [new D.ImageRun({ data: b64Bytes(png), transformation: { width: Math.round(c.width * r), height: Math.round(c.height * r) } })] }));
+    }
+    // header and footer
+    const logo = ($('.site-logo') || {}).src;
+    const hdr = new D.Table({ width: { size: 100, type: D.WidthType.PERCENTAGE }, columnWidths: [W - 2400, 2400], borders: { top: none, bottom: { style: D.BorderStyle.SINGLE, size: 18, color: '7FE5C9' }, left: none, right: none, insideHorizontal: none, insideVertical: none },
+      rows: [new D.TableRow({ children: [
+        new D.TableCell({ shading: { type: D.ShadingType.CLEAR, color: 'auto', fill: TEAL }, margins: { top: 120, bottom: 120, left: 200, right: 120 }, verticalAlign: D.VerticalAlign.CENTER, children: [para(run('DEC Floor Area Calculator', { bold: true, size: 24, color: 'FFFFFF' }), { after: 0 }), para(run(S.meta.building || 'Floor plan measurement', { size: 16, color: 'E2E8F0' }), { after: 0 })] }),
+        new D.TableCell({ shading: { type: D.ShadingType.CLEAR, color: 'auto', fill: TEAL }, margins: { top: 120, bottom: 120, left: 120, right: 200 }, verticalAlign: D.VerticalAlign.CENTER, children: [new D.Paragraph({ alignment: D.AlignmentType.RIGHT, children: logo ? [new D.ImageRun({ data: b64Bytes(logo), transformation: { width: 125, height: 32 } })] : [run('CSR Sustain', { bold: true, color: 'FFFFFF' })] })] })] })] });
+    const ftr = new D.Paragraph({ border: { top: { style: D.BorderStyle.SINGLE, size: 4, color: LINE, space: 4 } }, tabStops: [{ type: D.TabStopType.RIGHT, position: W }], children: [run('Boundaries traced manually; the assessor must verify results against drawing dimensions.', { size: 14, color: MUT }), new D.TextRun({ children: ['\tCSR Sustain · Page ', D.PageNumber.CURRENT, ' of ', D.PageNumber.TOTAL_PAGES], font: FONT, size: 14, color: MUT })] });
+    const doc = new D.Document({ creator: 'CSR Sustain', title: `Floor area report - ${S.meta.building || S.file.name}`, styles: { default: { document: { run: { font: FONT, size: 19, color: INK } } } },
+      sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1500, bottom: 1000, left: 1000, right: 1000, header: 400, footer: 400 } } }, headers: { default: new D.Header({ children: [hdr, para(run(''), { after: 0 })] }) }, footers: { default: new D.Footer({ children: [ftr] }) }, children: kids }] });
+    blob = await D.Packer.toBlob(doc);
+  } catch (e) { console.error(e); setBusy(null); toast('Could not build the Word report: ' + (e.message || e)); return; }
+  setBusy(null);
+  await saveFile(baseName() + ' - area report.docx', blob, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+}
+async function exportCsv() {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const t = totals(), lines = [];
+  lines.push(['Floor area measurement'].map(q).join(','));
+  lines.push([q('Source drawing'), q(S.file.name)].join(','));
+  if (S.meta.building) lines.push([q('Building / site'), q(S.meta.building)].join(','));
+  if (S.meta.ref) lines.push([q('Job reference'), q(S.meta.ref)].join(','));
+  if (S.meta.assessor) lines.push([q('Assessor'), q(S.meta.assessor)].join(','));
+  lines.push([q('Exported'), q(new Date().toLocaleString('en-GB'))].join(','));
+  lines.push('');
+  lines.push(['Building', 'Page', 'Floor / section', 'Name', 'Type', 'Benchmark category', 'Area (m²)', 'Area unrounded (m²)', 'Perimeter (m)', 'Points', 'Scale method', 'Metres per drawing unit'].map(q).join(','));
+  for (const r of rowsForExport()) lines.push([bldName(S.site.buildings.find(b => b.id === bldIdOf(r.p.page))), r.p.page + 1, lbl(r.p.page), r.p.name, r.p.kind === 'bnd' ? 'Boundary (not counted)' : r.p.kind === 'unc' ? 'Unconditioned (recorded only)' : KIND_NAME[r.p.kind], r.p.kind === 'inc' || r.p.kind === 'exc' ? benchName(r.p.bench || 0) : '', r.a == null ? '' : r.a.toFixed(2), r.a == null ? '' : r.a.toFixed(6), r.per == null ? '' : r.per.toFixed(3), r.p.pts.length, calDesc(r.cal), r.cal ? r.cal.mpu.toPrecision(10) : ''].map(q).join(','));
+  lines.push('');
+  if (S.pages.length > 1) { lines.push(['Floor subtotals', 'Included (m²)', 'Excluded (m²)', 'Net (m²)'].map(q).join(',')); S.pages.forEach((pg, i) => { const ft = floorTot(i); if (pg.removed || !ft.n) return; lines.push([`${lbl(i)} (page ${i + 1})`, ft.inc.toFixed(2), ft.exc.toFixed(2), ft.net.toFixed(2)].map(q).join(',')); }); lines.push(''); }
+  lines.push(['Building', 'Benchmark category', 'Benchmark area (m²)'].map(q).join(','));
+  S.site.buildings.forEach(b => { const sm = bldSummary(b); Object.keys(sm.byBench).forEach(k => lines.push([bldName(b), benchName(+k), sm.byBench[k].toFixed(2)].map(q).join(','))); if (sm.measured) lines.push([bldName(b), 'TUFA', sm.tufa.toFixed(2)].map(q).join(',')); if (sm.prev) lines.push([bldName(b), 'Area on previous DEC', sm.prev.toFixed(2)].map(q).join(',')); if (sm.uncTot) lines.push([bldName(b), 'Unconditioned (recorded only)', sm.uncTot.toFixed(2)].map(q).join(',')); });
+  lines.push('');
+  lines.push([q('Total included (m²)'), q(t.inc.toFixed(2))].join(','));
+  lines.push([q('Total excluded (m²)'), q(t.exc.toFixed(2))].join(','));
+  lines.push([q('Net floor area (m²)'), q(t.net.toFixed(2))].join(','));
+  if (t.missing) lines.push([q('Note'), q(`${t.missing} traced area(s) on uncalibrated pages are not included in the totals`)].join(','));
+  lines.push([q('Note'), q('Boundaries traced manually. Assessor to verify against drawing dimensions.')].join(','));
+  lines.push([q('Signed by'), q(S.meta.assessor || '')].join(',')); lines.push([q('Date signed'), q(fDate(S.sign.date))].join(','));
+  await saveFile(baseName() + ' - areas.csv', '﻿' + lines.join('\r\n'), 'text/csv');
+}
+async function exportPng() {
+  setBusy('Rendering image…'); let blob;
+  try { const c = await renderAnnotated(cur, 4000); blob = await new Promise(r => c.toBlob(r, 'image/png')); } finally { setBusy(null); }
+  await saveFile(baseName() + (S.pages.length > 1 ? ` - ${String(cur + 1).padStart(2, '0')} ${safeName(lbl(cur))}` : '') + ' - annotated.png', blob, 'image/png');
+}
+async function exportPdf() {
+  setBusy('Building PDF report…');
+  let blob;
+  try {
+    await ensureJsPdf();
+    const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+    const ink = [30, 41, 59], mut = [100, 116, 139], teal = [45, 106, 106], mint = [127, 229, 201], soft = [234, 243, 241], line = [226, 232, 240], orange = [180, 83, 9];
+    const t = totals(), date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const sa = s => String(s).replace(/[−–—]/g, '-').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[^\x20-\xFF]/g, '?');
+    const logo = ($('.site-logo') || {}).src;
+    const band = (h, title, sub) => { doc.setFillColor(...teal); doc.rect(0, 0, 297, h, 'F'); doc.setFillColor(...mint); doc.rect(0, h, 297, 1.2, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(h > 18 ? 17 : 11.5); doc.text(sa(title), 10, h > 18 ? 12.5 : 9); if (sub) { doc.setFont('helvetica', 'normal'); doc.setFontSize(h > 18 ? 9.5 : 8); doc.setTextColor(226, 232, 240); doc.text(sa(sub), 10, h > 18 ? 19 : 12.6, { maxWidth: 200 }); } if (logo) { const lh = h > 18 ? 11 : 7.5, lw = lh * 800 / 204; try { doc.addImage(logo, 'PNG', 287 - lw, (h - lh) / 2, lw, lh); } catch (e) {} } };
+    const footer = () => { doc.setDrawColor(...line); doc.line(10, 199, 287, 199); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...mut); doc.text(sa('Boundaries traced manually from the drawing listed above. Areas depend on the scale calibration shown. The assessor must verify results against drawing dimensions before use.'), 10, 203); doc.text(`CSR Sustain  ·  Page ${doc.getNumberOfPages()}`, 287, 203, { align: 'right' }); };
+    const contPage = () => { footer(); doc.addPage(); band(12, 'DEC Floor Area Calculator', 'Measurement results (continued)'); y = 24; };
+    // page 1
+    band(24, 'DEC Floor Area Calculator', 'Floor plan measurement  ·  Non-Domestic Energy Assessment');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+    const meta = [['Site', S.meta.building || '-'], ['Job reference', S.meta.ref || '-'], ['Assessor', S.meta.assessor || '-'], ['Source drawing', S.file.name], ['Date', date]];
+    meta.forEach(([k, v], i) => { doc.setTextColor(...mut); doc.text(k, 10, 36 + i * 6); doc.setTextColor(...ink); doc.text(sa(v), 44, 36 + i * 6, { maxWidth: 145 }); });
+    // summary box
+    doc.setDrawColor(187, 213, 208); doc.setFillColor(...soft); doc.roundedRect(198, 31, 89, 46, 3, 3, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...mut); doc.text('NET FLOOR AREA', 204, 39);
+    doc.setFontSize(22); doc.setTextColor(...teal); doc.text(`${fA(t.net)} m${'²'}`, 204, 50);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.setTextColor(...mut); doc.text('Included', 204, 60); doc.text('Voids', 204, 66); doc.text('Unconditioned', 204, 72);
+    doc.setTextColor(...ink); doc.text(`${fA(t.inc)} m²`, 281, 60, { align: 'right' }); doc.setTextColor(...orange); doc.text(`- ${fA(t.exc)} m²`, 281, 66, { align: 'right' }); doc.setTextColor(109, 40, 217); doc.text(t.nUnc ? `${fA(t.unc)} m\u00b2` : '-', 281, 72, { align: 'right' });
+    // table
+    let y = 90; const cols = [[10, 'Floor', 'l'], [50, 'Name', 'l'], [102, 'Type', 'l'], [130, 'Benchmark', 'l'], [196, 'Area (m\u00b2)', 'r'], [222, 'Perim. (m)', 'r'], [226, 'Scale', 'l']];
+    const head = () => { doc.setFillColor(...teal); doc.rect(10, y - 5, 277, 7.5, 'F'); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255); cols.forEach(([x, l, a]) => doc.text(l, a === 'r' ? x : x + 2, y, { align: a === 'r' ? 'right' : 'left' })); y += 7.5; doc.setFont('helvetica', 'normal'); };
+    head();
+    const RX = rowsForExport();
+    for (const r of RX) {
+      if (y > 190) { contPage(); head(); }
+      doc.setFontSize(8.5); doc.setTextColor(...(r.p.kind === 'exc' ? orange : r.p.kind === 'bnd' ? mut : r.p.kind === 'unc' ? [109, 40, 217] : ink));
+      doc.text(sa(lbl(r.p.page)).slice(0, 22), 12, y); doc.text(sa(r.p.name).slice(0, 27), 52, y); doc.text({ inc: 'Included', exc: 'Void', unc: 'Uncond. (rec.)', bnd: 'Boundary (ref.)' }[r.p.kind], 104, y); doc.text(r.p.kind === 'inc' || r.p.kind === 'exc' ? sa(benchName(r.p.bench || 0)).slice(0, 32) : '-', 132, y);
+      doc.text(r.a == null ? 'no scale' : (r.p.kind === 'exc' ? '- ' : '') + fA(r.a), 196, y, { align: 'right' }); doc.text(r.per == null ? '-' : nf(r.per, 3), 222, y, { align: 'right' });
+      doc.setTextColor(...mut); doc.text(sa(calDesc(r.cal)), 228, y, { maxWidth: 59 });
+      doc.setDrawColor(226, 230, 236); doc.line(10, y + 2.3, 287, y + 2.3); y += 6.5;
+      const nxt = RX[RX.indexOf(r) + 1];
+      if (S.pages.length > 1 && (!nxt || nxt.p.page !== r.p.page)) { if (y > 190) { contPage(); head(); } const ft = floorTot(r.p.page); doc.setFillColor(...soft); doc.rect(10, y - 4.5, 277, 6.8, 'F'); doc.setFont('helvetica', 'bold'); doc.setTextColor(...teal); doc.text(sa(`${lbl(r.p.page)} subtotal (net)`), 12, y); doc.text(ft.n - ft.miss ? fA(ft.net) : 'no scale', 196, y, { align: 'right' }); doc.setFont('helvetica', 'normal'); y += 8; }
+    }
+    if (!S.polys.length) { doc.setTextColor(...mut); doc.text('No areas traced.', 12, y); y += 6.5; }
+    const ensure = h => { if (y + h > 196) contPage(); };
+    const sub = txt => { y += 3; ensure(12); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...teal); doc.text(txt, 10, y); y += 5.5; doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); };
+    const kvl = (k, v, bold, col) => { ensure(5); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...(col || ink)); doc.text(sa(k), 14, y); doc.text(sa(v), 130, y, { align: 'right' }); y += 4.6; };
+    // benchmark summary
+    const sums = S.site.buildings.map(bldSummary).filter(x => x.measured || x.manual || x.prev);
+    if (sums.length) {
+      sub('Benchmark summary');
+      for (const sm of sums) {
+        if (S.site.buildings.length > 1) { ensure(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(...ink); doc.text(sa(bldName(sm.b)), 10, y); y += 5; }
+        Object.keys(sm.byBench).forEach(k => kvl(benchName(+k), `${fA(sm.byBench[k])} m²`));
+        if (sm.measured) kvl('TUFA (total useful floor area)', `${fA(sm.tufa)} m²`, true, teal); else if (sm.manual) kvl('Area entered (measured elsewhere)', `${fA(sm.manual)} m²`);
+        if (sm.prev) kvl(`Area on previous DEC ${fA(sm.prev)} m²`, sm.diff != null ? `${sm.diff >= 0 ? '+' : '-'}${nf(Math.abs(sm.diff) * 100, 1)} %` : '-', false, sm.diff != null && Math.abs(sm.diff) > PREV_TOL ? orange : mut);
+        if (sm.unc.length) { kvl('Unconditioned areas (recorded only, not in TUFA)', `${fA(sm.uncTot)} m²`, false, [109, 40, 217]); sm.unc.forEach(u => kvl(`   ${lbl(u.page)} - ${u.name}`, `${fA(u.area)} m²`, false, mut)); }
+        y += 1.5;
+      }
+    }
+    // energy split
+    if (S.site.buildings.length > 1) {
+      const sp = energySplit(), ec = [['elec', 'Electricity kWh'], ['gas', 'Gas kWh'], ['other', (S.site.energy.otherName || 'Other') + ' kWh']].filter(([k]) => sp.E[k] != null);
+      sub('Energy split by floor area'); doc.setTextColor(...mut); ensure(5); doc.text(sa('Site totals apportioned to each building in proportion to its floor area.'), 10, y); y += 5;
+      const xs = [10, 120, 145, 180, 215, 250]; ensure(6); doc.setFont('helvetica', 'bold'); doc.setTextColor(...ink);
+      ['Building', 'Area m²', 'Share'].concat(ec.map(c => c[1])).forEach((h, i) => doc.text(sa(h), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 5; doc.setFont('helvetica', 'normal');
+      sp.rows.forEach(r => { ensure(5); doc.setTextColor(...ink); [bldName(r.b), fA(r.splitArea), nf(r.share * 100, 1) + ' %'].concat(ec.map(c => nf(r[c[0]], 0))).forEach((v, i) => doc.text(sa(v), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 4.6; });
+      ensure(5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...teal); ['Site total', fA(sp.total), sp.total ? '100 %' : '-'].concat(ec.map(c => nf(sp.E[c[0]], 0))).forEach((v, i) => doc.text(sa(v), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 5; doc.setFont('helvetica', 'normal');
+    }
+    y += 3; if (y > 182) contPage();
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...teal); doc.text('Method', 10, y); y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...mut);
+    const method = 'Each area is a closed polygon traced on the drawing. Its area is calculated with the shoelace (Gauss) formula from the vertex coordinates in drawing units, then converted to square metres using the page calibration. Values are rounded to two decimal places only for display. Benchmark area = included area - void area for that benchmark; TUFA = sum of benchmark areas. Unconditioned areas are listed for information and are not added to or subtracted from the TUFA.';
+    const ml = doc.splitTextToSize(method, 277); doc.text(ml, 10, y); y += ml.length * 4 + 2;
+    S.pages.forEach((pg, i) => { if (pg.removed || (!pg.calib && !S.polys.some(p => p.page === i))) return; const eq = pg.calib ? equivScale(pg.calib) : null; const line = `${S.pages.length > 1 ? lbl(i) + ' (page ' + (i + 1) + '): ' : 'Calibration: '}${calDesc(pg.calib)}${pg.calib ? ` (${nf(1 / pg.calib.mpu, 3)} ${unitName()} per metre${eq ? ', equivalent 1:' + nf(eq.n, 1) + ' ' + eq.note : ''}${pg.calib.method === 'two' ? ', click precision +/- ' + nf(calPrecision(pg.calib) * 100, 2) + ' %' : ''})` : ''}`; if (y > 196) contPage(); doc.text(sa(line), 10, y); y += 4.5; });
+    const w = warnings(); if (w.length) { y += 2; doc.setTextColor(...orange); doc.setFont('helvetica', 'bold'); if (y > 192) contPage(); doc.text('Items to check', 10, y); y += 4.5; doc.setFont('helvetica', 'normal'); w.forEach(x => { const l = doc.splitTextToSize('- ' + sa((ISSUE_TAG[x.type] || 'Check') + ': ' + x.msg), 277); if (y + l.length * 4 > 198) contPage(); doc.text(l, 10, y); y += l.length * 4; }); }
+    // sign-off
+    y += 3; ensure(34); doc.setDrawColor(187, 213, 208); doc.setFillColor(...soft); doc.roundedRect(10, y, 277, 30, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...teal); doc.text('Sign-off', 15, y + 7);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...mut); doc.text('Assessor', 15, y + 14); doc.text('Date signed', 15, y + 20);
+    doc.setTextColor(...ink); doc.text(sa(S.meta.assessor || 'Not entered'), 42, y + 14); doc.text(sa(fDate(S.sign.date) || 'Not dated'), 42, y + 20);
+    doc.setFontSize(8); doc.setTextColor(...(S.sign.confirm ? ink : orange)); doc.text(sa(S.sign.confirm ? 'Declaration: I confirm I measured these areas and checked them against the drawing dimensions.' : 'Declaration not confirmed.'), 15, y + 26.5);
+    doc.setTextColor(...mut); doc.text('Signature', 190, y + 7);
+    if (S.sign.sig) { try { doc.addImage(S.sign.sig, 'PNG', 190, y + 8, 66, 20); } catch (e) {} } else { doc.setTextColor(...orange); doc.text('Not signed', 190, y + 16); }
+    y += 34;
+    footer();
+    // drawing pages
+    const pagesWith = livePages().filter(i => S.polys.some(p => p.page === i));
+    for (const i of (pagesWith.length ? pagesWith : [cur])) {
+      doc.addPage(); band(14, `Traced boundaries${S.pages.length > 1 ? ' - ' + lbl(i) : ''}`, `${S.file.name}  ·  ${calDesc(S.pages[i].calib)}`);
+      const c = await renderAnnotated(i, 3200); const bw = 277, bh = 177, r = Math.min(bw / c.width, bh / c.height), iw = c.width * r, ih = c.height * r, ix = 10 + (bw - iw) / 2, iy = 20 + (bh - ih) / 2;
+      doc.addImage(c.toDataURL('image/jpeg', 0.9), 'JPEG', ix, iy, iw, ih); doc.setDrawColor(...line); doc.rect(ix, iy, iw, ih);
+      footer();
+    }
+    blob = doc.output('blob');
+  } catch (e) { console.error(e); setBusy(null); toast('Could not build the PDF: ' + (e.message || e)); return; }
+  setBusy(null);
+  await saveFile(baseName() + ' - area report.pdf', blob, 'application/pdf');
+}
+
+/* ---------- menus and buttons ---------- */
+function closeMenu() { $('#expMenu').hidden = true; }
+$('#bExport').addEventListener('click', e => { e.stopPropagation(); const m = $('#expMenu'); if (!m.hidden) { closeMenu(); return; } m.querySelectorAll('[data-split]').forEach(x => { x.hidden = !(S.file && S.file.type === 'pdf' && S.pages.length > 1); }); const r = e.currentTarget.getBoundingClientRect(); m.hidden = false; m.style.top = (r.bottom + 6) + 'px'; m.style.left = Math.max(16, Math.min(r.left, window.innerWidth - m.offsetWidth - 16)) + 'px'; });
+document.addEventListener('click', e => { if (!e.target.closest('#expMenu')) closeMenu(); });
+async function confirmExport(what) {
+  const w = warnings(); const si = signIssue(); if (si) w.push(si); if (!w.length) return true;
+  const errs = w.filter(x => x.sev === 'err').length;
+  const ok = await ask('Check before exporting', `${w.length} item${w.length > 1 ? 's' : ''} found${errs ? `, ${errs} of them likely to make the total wrong` : ''}. The ${what} will use the figures exactly as they are now.`, 'Export anyway', w.map(x => `${ISSUE_TAG[x.type] || 'Check'}: ${x.msg}`), 'Review issues');
+  if (!ok) goIssue(w[0]);
+  return ok;
+}
+async function runExport(kind) {
+  if (!S.file) { toast('Open a drawing first.'); return; }
+  const what = { pdf: 'PDF report', docx: 'Word report', png: 'annotated image', csv: 'CSV breakdown' }[kind];
+  if (what && !(await confirmExport(what))) return;
+  ({ docx: exportDocx, pdf: exportPdf, png: exportPng, csv: exportCsv, split: () => exportSplit(true), splitone: () => exportSplit(false) })[kind]();
+}
+document.querySelectorAll('[data-dl]').forEach(b => b.addEventListener('click', () => runExport(b.dataset.dl)));
+$('#expMenu').addEventListener('click', async e => { const b = e.target.closest('[data-exp]'); if (!b) return; closeMenu(); runExport(b.dataset.exp); });
+[$('#bOpen'), $('#bOpen3')].forEach(b => b.addEventListener('click', () => $('#fileIn').click()));
+$('#fileIn').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
+$('#bLoad').addEventListener('click', () => $('#projIn').click());
+$('#projIn').addEventListener('change', e => { loadProject(e.target.files[0]); e.target.value = ''; });
+$('#bUndo').addEventListener('click', undo); $('#bRedo').addEventListener('click', redo); $('#bDel').addEventListener('click', deleteSel);
+$('#bZin').addEventListener('click', () => zoomAt(1.25, W / 2, H / 2)); $('#bZout').addEventListener('click', () => zoomAt(0.8, W / 2, H / 2));
+$('#bFit').addEventListener('click', fit); $('#bRot').addEventListener('click', rotate);
+$('#bReset').addEventListener('click', async () => {
+  if (!S.file) return;
+  if (!(await ask('Reset measurements?', 'This clears every traced area and the scale on all pages of this drawing. You can still undo it.', 'Reset'))) return;
+  mutate(() => { S.polys = []; S.pages.forEach(p => { p.calib = null; }); }); sel = null; draft = null; calibPts = []; measurePts = []; S.isSample = false; setTool('calib'); toast('Measurements cleared. Set the scale to start again.');
+});
+ws.addEventListener('dragover', e => { e.preventDefault(); ws.classList.add('drop'); });
+ws.addEventListener('dragleave', e => { if (e.target === ws || !ws.contains(e.relatedTarget)) ws.classList.remove('drop'); });
+ws.addEventListener('drop', e => { e.preventDefault(); ws.classList.remove('drop'); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (!f) return; if (/\.json$/i.test(f.name)) loadProject(f); else openFile(f); });
+window.addEventListener('beforeunload', e => { if (dirty && !S.isSample && S.polys.length) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- start ---------- */
+new ResizeObserver(resize).observe(ws);
+const mq = window.matchMedia('(prefers-color-scheme: dark)'); if (mq.addEventListener) mq.addEventListener('change', readTokens);
+new MutationObserver(readTokens).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+readTokens(); setTool('select'); refresh(); resize(); syncMeta();
+})();
+</script>
+</body>
+</html>

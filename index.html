@@ -257,6 +257,8 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .showside b{font-variant-numeric:tabular-nums}
 @media (max-width:1200px){.rscale,.rsign{grid-template-columns:1fr 1fr}.rsitebox,.rsite{grid-template-columns:1fr}}
 @media (max-width:900px){.rbody{max-height:70vh}.rscale,.rsign{grid-template-columns:1fr}}
+.angpop{width:320px;padding:14px;gap:10px}
+.angpop .row .btn{flex:1}
 .disc{margin:0;padding:12px 14px;font-size:12px;color:var(--muted);background:var(--white);border:1px solid var(--border-color);border-radius:12px;flex:none}
 .fl{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--text-2)}
 .disc b{color:var(--text-color);font-weight:600}
@@ -357,7 +359,9 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
       <span class="zoomv" id="zoomV">100%</span>
       <button id="bZin" title="Zoom in (+)"><svg class="i"><use href="#i-zin"/></svg></button>
       <button id="bFit" title="Fit drawing to screen (F)"><svg class="i"><use href="#i-fit"/></svg></button>
-      <button id="bRot" title="Rotate view 90° (R)"><svg class="i"><use href="#i-rot"/></svg></button>
+      <button id="bRotL" title="Rotate left 90° (Shift+R)" aria-label="Rotate left 90 degrees"><svg class="i" style="transform:scaleX(-1)"><use href="#i-rot"/></svg></button>
+      <button id="bRot" title="Rotate right 90° (R)" aria-label="Rotate right 90 degrees"><svg class="i"><use href="#i-rot"/></svg></button>
+      <button id="bAng" title="Rotation: fine angle to straighten a skewed scan" aria-haspopup="dialog"><span id="angV" class="zoomv" style="min-width:38px">0°</span></button>
     </div>
     <div class="spacer"></div>
     <div class="grp">
@@ -440,6 +444,14 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
   <button role="menuitem" data-exp="split" data-split>Split PDF by floor (ZIP)<small>One PDF per page, named by floor</small></button>
   <button role="menuitem" data-exp="splitone" data-split>This floor as a separate PDF<small>Only the page you are viewing</small></button>
 </div>
+<div class="menu angpop" id="angPop" hidden role="dialog" aria-label="Rotate drawing">
+  <div class="rg-cap">Rotate drawing</div>
+  <div class="row"><button class="btn" type="button" id="angL">⟲ 90° left</button><button class="btn" type="button" id="angR">90° right ⟳</button></div>
+  <label class="fl" for="angSlider">Fine angle (straighten a skewed scan)</label>
+  <div class="row" style="flex-wrap:nowrap"><input type="range" id="angSlider" min="-45" max="45" step="0.1" value="0" style="flex:1;accent-color:var(--primary-color)"><input class="in" id="angNum" type="number" min="-45" max="45" step="0.1" value="0" style="width:76px"><span class="note">°</span></div>
+  <div class="row" style="justify-content:space-between"><span class="note" id="angTot">Total rotation 0°</span><button class="mini" type="button" id="angReset">Reset to 0°</button></div>
+  <p class="note">Rotation only changes how the plan is shown. Areas and lengths stay exactly the same. Reports and images use the same orientation.</p>
+</div>
 <div class="modal" id="modal" hidden><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="mT"><h3 id="mT"></h3><p id="mX"></p><ul class="mlist" id="mL" hidden></ul><div class="row"><button class="btn" id="mNo">Cancel</button><button class="btn primary" id="mYes">OK</button></div></div></div>
 <div class="toast" id="toast" role="status" hidden></div>
 <datalist id="benchSug"><option value="General office"></option><option value="High street agency"></option><option value="General retail"></option><option value="Large non-food shop"></option><option value="Small food store"></option><option value="Large food store"></option><option value="Restaurant"></option><option value="Bar, pub or licensed club"></option><option value="Hotel"></option><option value="Cultural activities"></option><option value="Entertainment halls"></option><option value="Swimming pool centre"></option><option value="Fitness and health centre"></option><option value="Dry sports and leisure facility"></option><option value="Covered car park"></option><option value="Public buildings with light usage"></option><option value="Schools and seasonal public buildings"></option><option value="University campus"></option><option value="Clinic"></option><option value="Hospital - clinical and research"></option><option value="Long term residential"></option><option value="General accommodation"></option><option value="Emergency services"></option><option value="Laboratory or operating theatre"></option><option value="Public waiting or circulation"></option><option value="Terminal"></option><option value="Workshop"></option><option value="Storage facility"></option><option value="Cold storage"></option></datalist>
@@ -456,7 +468,9 @@ const COL = { inc: '#2D6A6A', exc: '#B45309', unc: '#6D28D9', bnd: '#1E293B', ca
 const KIND_OF = { poly: 'inc', excl: 'exc', unc: 'unc', bnd: 'bnd' }, DRAW_TOOLS = ['poly', 'excl', 'unc', 'bnd'];
 const KIND_NAME = { inc: 'Included', exc: 'Void / excluded', unc: 'Unconditioned', bnd: 'Boundary' };
 const PREV_TOL = 0.05;   // flag a change of more than 5 % against the previous DEC area
-const CS = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+const ang2cs = a => { const q = ((a % 360) + 360) % 360; if (q === 0) return [1, 0]; if (q === 90) return [0, 1]; if (q === 180) return [-1, 0]; if (q === 270) return [0, -1]; const r = a * Math.PI / 180; return [Math.cos(r), Math.sin(r)]; };
+const vcs = () => ang2cs(V.a);
+const normAng = a => { let x = Math.round(a * 100) / 100; x = ((x % 360) + 360) % 360; if (x > 180) x -= 360; return x === -0 ? 0 : x; };
 const PT_M = 0.0254 / 72;           // one PDF point in metres at sheet size
 const APP_ID = 'floor-area-measure';
 
@@ -465,7 +479,7 @@ const defSite = () => ({ bench: ['', '', '', ''], buildings: [{ id: 1, name: '',
 const S = { file: null, pages: [], polys: [], nextId: 1, meta: { building: '', ref: '', assessor: '' }, lenUnit: 'm', isSample: false, site: defSite(), sign: { date: '', sig: null, confirm: false } };
 let lastBench = null;
 let cur = 0;
-const V = { z: 1, r: 0, x: 0, y: 0 };
+const V = { z: 1, a: 0, x: 0, y: 0 };
 let pdfDoc = null, pdfPage = null, base = null, baseScale = 1, imgBmp = null, detail = null;
 let tool = 'select', sel = null, selV = -1, draft = null, calibPts = [], measurePts = [];
 let hover = null, hoverPlace = null, ptr = null, spaceDown = false, dirty = false, manualOpen = false, lastDistUnit = 'm';
@@ -481,8 +495,8 @@ const parseNum = s => parseFloat(String(s).replace(/[\s,]/g, ''));
 const unitName = () => S.file && S.file.type === 'pdf' ? 'pt' : 'px';
 
 /* ---------- view transform (document units -> screen CSS px) ---------- */
-function toS(x, y) { const [c, s] = CS[V.r]; return { x: V.z * (c * x - s * y) + V.x, y: V.z * (s * x + c * y) + V.y }; }
-function toD(sx, sy) { const [c, s] = CS[V.r]; const dx = (sx - V.x) / V.z, dy = (sy - V.y) / V.z; return [c * dx + s * dy, -s * dx + c * dy]; }
+function toS(x, y) { const [c, s] = vcs(); return { x: V.z * (c * x - s * y) + V.x, y: V.z * (s * x + c * y) + V.y }; }
+function toD(sx, sy) { const [c, s] = vcs(); const dx = (sx - V.x) / V.z, dy = (sy - V.y) / V.z; return [c * dx + s * dy, -s * dx + c * dy]; }
 const mapS = (x, y) => { const p = toS(x, y); return [p.x, p.y]; };
 
 /* ---------- geometry (all in document units; metres applied at the end) ---------- */
@@ -693,7 +707,7 @@ async function showPage(i, keepView) {
   scaleClosed = false;
   if (sumOpen) setSumView(false);
   cur = i; sel = null; selV = -1; draft = null; calibPts = []; measurePts = []; detail = null; detailSeq++; base = null;
-  const pg = S.pages[i]; V.r = pg.rot || 0;
+  const pg = S.pages[i]; V.a = pg.ang != null ? pg.ang : (pg.rot || 0) * 90;
   if (S.file.type === 'pdf') {
     setBusy(`Rendering page ${i + 1}…`);
     try {
@@ -706,6 +720,7 @@ async function showPage(i, keepView) {
     } finally { setBusy(null); }
   }
   refresh(); if (!keepView) fit(); scheduleDetail();
+  syncAng();
   const at = document.querySelector('.ftab.active'); if (at && at.scrollIntoView) at.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
@@ -743,13 +758,13 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = boardCol; ctx.fillRect(0, 0, cv.width, cv.height);
   $('#empty').hidden = !!S.file;
   if (!S.file) return;
-  const pg = S.pages[cur], [c, s] = CS[V.r];
+  const pg = S.pages[cur], [c, s] = vcs();
   ctx.setTransform(V.z * c * dpr, V.z * s * dpr, -V.z * s * dpr, V.z * c * dpr, V.x * dpr, V.y * dpr);
   ctx.save(); ctx.shadowColor = 'rgba(15,23,42,.16)'; ctx.shadowBlur = 14 * dpr; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pg.w, pg.h); ctx.restore();
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   if (S.file.type === 'pdf') { if (base) ctx.drawImage(base, 0, 0, pg.w, pg.h); }
   else if (imgBmp) ctx.drawImage(imgBmp, 0, 0, pg.w, pg.h);
-  if (detail && detail.pg === cur && detail.z === V.z && detail.r === V.r) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(detail.c, Math.round((V.x - detail.x) * dpr), Math.round((V.y - detail.y) * dpr)); }
+  if (detail && detail.pg === cur && detail.z === V.z && detail.a === V.a) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(detail.c, Math.round((V.x - detail.x) * dpr), Math.round((V.y - detail.y) * dpr)); }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawOverlays(ctx, cur, mapS, 1, true);
   drawLive();
@@ -866,9 +881,9 @@ async function renderDetail() {
   if (!pdfPage || V.z * dpr <= baseScale * 1.05) { detail = null; return; }
   const seq = ++detailSeq; if (detailTask) { try { detailTask.cancel(); } catch (e) {} }
   const c = document.createElement('canvas'); c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
-  const g = c.getContext('2d'), [cc, ss] = CS[V.r], z = V.z * dpr, tr = [z * cc, z * ss, -z * ss, z * cc, V.x * dpr, V.y * dpr];
+  const g = c.getContext('2d'), [cc, ss] = vcs(), z = V.z * dpr, tr = [z * cc, z * ss, -z * ss, z * cc, V.x * dpr, V.y * dpr];
   const pg = S.pages[cur]; g.setTransform(...tr); g.fillStyle = '#fff'; g.fillRect(0, 0, pg.w, pg.h); g.setTransform(1, 0, 0, 1, 0, 0);
-  const view = { z: V.z, r: V.r, x: V.x, y: V.y, pg: cur, page: pdfPage };
+  const view = { z: V.z, a: V.a, x: V.x, y: V.y, pg: cur, page: pdfPage };
   const task = pdfPage.render({ canvasContext: g, viewport: pdfPage.getViewport({ scale: 1 }), transform: tr, background: 'rgba(0,0,0,0)' });
   detailTask = task;
   try { await task.promise; } catch (e) { return; }
@@ -878,11 +893,25 @@ async function renderDetail() {
 
 /* ---------- view operations ---------- */
 function afterView() { requestDraw(); scheduleDetail(); }
-function centreOn(d) { const [c, s] = CS[V.r]; V.x = W / 2 - V.z * (c * d[0] - s * d[1]); V.y = H / 2 - V.z * (s * d[0] + c * d[1]); }
+function centreOn(d) { const [c, s] = vcs(); V.x = W / 2 - V.z * (c * d[0] - s * d[1]); V.y = H / 2 - V.z * (s * d[0] + c * d[1]); }
 function syncSize() { const r = ws.getBoundingClientRect(); if (r.width && (Math.abs(r.width - W) > .5 || Math.abs(r.height - H) > .5)) { dpr = window.devicePixelRatio || 1; W = r.width; H = r.height; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); detail = null; } }
-function fit() { syncSize(); const pg = S.pages[cur]; if (!pg || !W) return; const pad = 30, rw = V.r % 2 ? pg.h : pg.w, rh = V.r % 2 ? pg.w : pg.h; V.z = Math.max(1e-4, Math.min((W - 2 * pad) / rw, (H - 2 * pad) / rh)); centreOn([pg.w / 2, pg.h / 2]); afterView(); }
+function fit() { syncSize(); const pg = S.pages[cur]; if (!pg || !W) return; const pad = 30, [fc, fs] = vcs(), rw = Math.abs(pg.w * fc) + Math.abs(pg.h * fs), rh = Math.abs(pg.w * fs) + Math.abs(pg.h * fc); V.z = Math.max(1e-4, Math.min((W - 2 * pad) / rw, (H - 2 * pad) / rh)); centreOn([pg.w / 2, pg.h / 2]); afterView(); }
 function zoomAt(f, sx, sy) { const d = toD(sx, sy); V.z = Math.min(400, Math.max(1e-4, V.z * f)); const p = toS(d[0], d[1]); V.x += sx - p.x; V.y += sy - p.y; afterView(); }
-function rotate() { if (!S.file) return; const d = toD(W / 2, H / 2); V.r = (V.r + 1) % 4; S.pages[cur].rot = V.r; centreOn(d); detail = null; afterView(); renderDrawInfo(); }
+function setAngle(a) { if (!S.file) return; const d = toD(W / 2, H / 2); V.a = normAng(a); S.pages[cur].ang = V.a; centreOn(d); detail = null; afterView(); renderDrawInfo(); syncAng(); }
+function rotate(dir) { setAngle(V.a + (dir < 0 ? -90 : 90)); }
+function syncAng() {
+  const base = Math.round(V.a / 90) * 90, fine = Math.round((V.a - base) * 10) / 10;
+  $('#angV').textContent = (Number.isInteger(V.a) ? V.a : nf(V.a, 1)) + '°';
+  $('#angSlider').value = fine; if (document.activeElement !== $('#angNum')) $('#angNum').value = fine;
+  $('#angTot').textContent = `Total rotation ${Number.isInteger(V.a) ? V.a : nf(V.a, 1)}°`;
+}
+const fineSet = v => { const f = Math.max(-45, Math.min(45, parseFloat(v) || 0)); setAngle(Math.round(V.a / 90) * 90 + f); };
+$('#angSlider').addEventListener('input', e => fineSet(e.target.value));
+$('#angNum').addEventListener('change', e => fineSet(e.target.value));
+$('#angL').addEventListener('click', () => rotate(-1)); $('#angR').addEventListener('click', () => rotate(1));
+$('#angReset').addEventListener('click', () => setAngle(0));
+$('#bAng').addEventListener('click', e => { e.stopPropagation(); const m = $('#angPop'); if (!m.hidden) { m.hidden = true; return; } if (!S.file) { toast('Open a drawing first.'); return; } syncAng(); const r = e.currentTarget.getBoundingClientRect(); m.hidden = false; m.style.top = (r.bottom + 6) + 'px'; m.style.left = Math.max(16, Math.min(r.left - 120, window.innerWidth - m.offsetWidth - 16)) + 'px'; });
+document.addEventListener('click', e => { if (!e.target.closest('#angPop') && !e.target.closest('#bAng')) $('#angPop').hidden = true; });
 
 /* ---------- interaction ---------- */
 function evPt(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
@@ -897,7 +926,7 @@ function placePoint(s, shift, ref, skip) {
   if (shift && ref) {
     const r = toS(ref[0], ref[1]), q = { x: s.x, y: s.y };
     if (Math.abs(q.x - r.x) > Math.abs(q.y - r.y)) q.y = r.y; else q.x = r.x;
-    const d = toD(q.x, q.y); if (Math.abs(d[0] - ref[0]) < Math.abs(d[1] - ref[1])) d[0] = ref[0]; else d[1] = ref[1];
+    const d = toD(q.x, q.y); if (V.a % 90 === 0) { if (Math.abs(d[0] - ref[0]) < Math.abs(d[1] - ref[1])) d[0] = ref[0]; else d[1] = ref[1]; }
     return { pt: d, snapped: false };
   }
   const sn = findSnap(s, skip); if (sn) return { pt: sn.slice(), snapped: true };
@@ -1053,7 +1082,7 @@ window.addEventListener('keydown', e => {
     case 'c': case 'C': setTool('calib'); break;
     case 'm': case 'M': setTool('measure'); break;
     case 'f': case 'F': fit(); break;
-    case 'r': case 'R': rotate(); break;
+    case 'r': case 'R': rotate(e.shiftKey ? -1 : 1); break;
     case '+': case '=': zoomAt(1.25, W / 2, H / 2); break;
     case '-': case '_': zoomAt(0.8, W / 2, H / 2); break;
     case 'Enter': if (draft) finishDraft(); else if (calibPts.length === 2) applyTwoPoint(); break;
@@ -1067,7 +1096,7 @@ window.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; 
 
 /* ---------- sidebar ---------- */
 function refresh() { renderList(); renderScale(); renderDrawInfo(); updateNumbers(); updUndo(); requestDraw(); }
-function updUndo() { $('#bUndo').disabled = !undoS.length && !(draft && draft.pts.length); $('#bRedo').disabled = !redoS.length; const has = !!S.file; ['bExport', 'bReset', 'bZin', 'bZout', 'bFit', 'bRot'].forEach(id => $('#' + id).disabled = !has); }
+function updUndo() { $('#bUndo').disabled = !undoS.length && !(draft && draft.pts.length); $('#bRedo').disabled = !redoS.length; const has = !!S.file; ['bExport', 'bReset', 'bZin', 'bZout', 'bFit', 'bRot', 'bRotL', 'bAng'].forEach(id => $('#' + id).disabled = !has); }
 
 function updateNumbers() {
   const t = totals();
@@ -1375,7 +1404,7 @@ function renderDrawInfo() {
   let h = `<dl class="kv"><div><dt>File</dt><dd style="font-family:var(--f-ui);overflow-wrap:anywhere">${esc(S.file.name)}</dd></div>`;
   if (isPdf) { const wmm = pg.w * 25.4 / 72, hmm = pg.h * 25.4 / 72, nm = sheetName(wmm, hmm); h += `<div><dt>Sheet</dt><dd>${nf(wmm, 0)} × ${nf(hmm, 0)} mm${nm ? ' · ' + nm.split(' ')[0] : ''}</dd></div>`; }
   else h += `<div><dt>Image</dt><dd>${nf(pg.w, 0)} × ${nf(pg.h, 0)} px${S.file.dpi ? ' · ' + nf(S.file.dpi, 0) + ' dpi' : ''}</dd></div>`;
-  h += `<div><dt>View rotation</dt><dd>${V.r * 90}°</dd></div></dl>`;
+  h += `<div><dt>View rotation</dt><dd>${Number.isInteger(V.a) ? V.a : nf(V.a, 1)}°</dd></div></dl>`;
   if (S.pages.length > 1) h += `<p class="note">Page ${cur + 1} of ${S.pages.length}${S.pages.length - livePages().length ? ' (' + (S.pages.length - livePages().length) + ' removed)' : ''}. Each page is a separate floor with its own scale and subtotal. Switch floors with the floor tabs or Page Up / Page Down.</p>
     <label class="fl">Floor / section name<input class="in txt" id="pgLabel" maxlength="50" value="${esc(S.pages[cur].label || '')}" placeholder="Page ${cur + 1}, e.g. Ground floor"></label>${livePages().length > 1 ? '<button class="btn" type="button" id="pgRemove">Remove this page</button>' : ''}`;
   if (S.site.buildings.length > 1) h += `<label class="fl">Building for this ${S.pages.length > 1 ? 'floor' : 'drawing'}<select class="in txt" id="pgBld">${S.site.buildings.map(b => `<option value="${b.id}"${bldIdOf(cur) === b.id ? ' selected' : ''}>${esc(bldName(b))}</option>`).join('')}</select></label>`;
@@ -1438,7 +1467,7 @@ async function saveProject() {
   if (!S.file) { toast('Open a drawing first.'); return; }
   setBusy('Preparing project…');
   let json;
-  try { json = JSON.stringify({ app: APP_ID, version: 1, savedAt: new Date().toISOString(), file: { name: S.file.name, type: S.file.type, mime: S.file.mime, data: bufToB64(S.file.buf) }, pages: S.pages.map(p => ({ w: p.w, h: p.h, calib: p.calib, rot: p.rot || 0, label: p.label || null, bld: p.bld || null, removed: !!p.removed })), polys: S.polys, nextId: S.nextId, meta: S.meta, site: S.site, sign: S.sign, lenUnit: S.lenUnit, page: cur }); }
+  try { json = JSON.stringify({ app: APP_ID, version: 1, savedAt: new Date().toISOString(), file: { name: S.file.name, type: S.file.type, mime: S.file.mime, data: bufToB64(S.file.buf) }, pages: S.pages.map(p => ({ w: p.w, h: p.h, calib: p.calib, ang: p.ang != null ? p.ang : (p.rot || 0) * 90, label: p.label || null, bld: p.bld || null, removed: !!p.removed })), polys: S.polys, nextId: S.nextId, meta: S.meta, site: S.site, sign: S.sign, lenUnit: S.lenUnit, page: cur }); }
   finally { setBusy(null); }
   if (await saveFile(baseName() + ' - area measure.json', json, 'application/json')) dirty = false;
 }
@@ -1449,7 +1478,7 @@ async function loadProject(f) {
   if (!o || o.app !== APP_ID || !o.file || !o.file.data) { toast('This is not a Floor Area Measure project file.'); return; }
   try { await commitDrawing({ name: o.file.name, type: o.file.type, mime: o.file.mime, buf: b64ToBuf(o.file.data) }); }
   catch (e) { toast('Could not open the drawing stored in this project: ' + (e.message || e)); return; }
-  (o.pages || []).forEach((p, i) => { if (S.pages[i]) { S.pages[i].calib = p.calib || null; S.pages[i].rot = p.rot || 0; if ('label' in p) S.pages[i].label = p.label || null; if (p.bld) S.pages[i].bld = p.bld; if (p.removed) S.pages[i].removed = true; } });
+  (o.pages || []).forEach((p, i) => { if (S.pages[i]) { S.pages[i].calib = p.calib || null; S.pages[i].ang = p.ang != null ? p.ang : (p.rot || 0) * 90; if ('label' in p) S.pages[i].label = p.label || null; if (p.bld) S.pages[i].bld = p.bld; if (p.removed) S.pages[i].removed = true; } });
   S.site = Object.assign(defSite(), o.site || {}); if (!Array.isArray(S.site.buildings) || !S.site.buildings.length) S.site.buildings = defSite().buildings; S.site.bench = [0, 1, 2, 3].map(i => (S.site.bench && S.site.bench[i]) || ''); S.site.energy = Object.assign(defSite().energy, S.site.energy || {}); S.site.nextB = Math.max(S.site.nextB || 2, ...S.site.buildings.map(b => b.id + 1));
   S.sign = Object.assign({ date: '', sig: null, confirm: false }, o.sign || {});
   S.polys = (o.polys || []).filter(p => Array.isArray(p.pts) && p.pts.length >= 3 && p.page < S.pages.length);
@@ -1461,12 +1490,16 @@ async function loadProject(f) {
 }
 
 async function renderAnnotated(i, maxSide) {
-  const pg = S.pages[i], s = Math.min(maxSide / Math.max(pg.w, pg.h), 8);
-  const c = document.createElement('canvas'); c.width = Math.round(pg.w * s); c.height = Math.round(pg.h * s);
+  const pg = S.pages[i], [rc, rs] = ang2cs(pg.ang != null ? pg.ang : (pg.rot || 0) * 90);
+  const bw = Math.abs(pg.w * rc) + Math.abs(pg.h * rs), bh = Math.abs(pg.w * rs) + Math.abs(pg.h * rc), s = Math.min(maxSide / Math.max(bw, bh), 8);
+  const cn = [[0, 0], [pg.w, 0], [0, pg.h], [pg.w, pg.h]].map(([x, y]) => [rc * x - rs * y, rs * x + rc * y]);
+  const tr = [s * rc, s * rs, -s * rs, s * rc, -Math.min(...cn.map(q => q[0])) * s, -Math.min(...cn.map(q => q[1])) * s];
+  const c = document.createElement('canvas'); c.width = Math.round(bw * s); c.height = Math.round(bh * s);
   const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
-  if (S.file.type === 'pdf') { const p = await pdfDoc.getPage(i + 1); await p.render({ canvasContext: g, viewport: p.getViewport({ scale: s }) }).promise; }
-  else { g.imageSmoothingQuality = 'high'; g.drawImage(imgBmp, 0, 0, c.width, c.height); }
-  drawOverlays(g, i, (x, y) => [x * s, y * s], Math.max(1, Math.max(c.width, c.height) / 1500), false);
+  if (S.file.type === 'pdf') { const p = await pdfDoc.getPage(i + 1); await p.render({ canvasContext: g, viewport: p.getViewport({ scale: 1 }), transform: tr }).promise; }
+  else { g.save(); g.setTransform(...tr); g.imageSmoothingQuality = 'high'; g.drawImage(imgBmp, 0, 0, pg.w, pg.h); g.restore(); }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  drawOverlays(g, i, (x, y) => [tr[0] * x + tr[2] * y + tr[4], tr[1] * x + tr[3] * y + tr[5]], Math.max(1, Math.max(c.width, c.height) / 1500), false);
   return c;
 }
 function rowsForExport() {
@@ -1742,7 +1775,7 @@ $('#bLoad').addEventListener('click', () => $('#projIn').click());
 $('#projIn').addEventListener('change', e => { loadProject(e.target.files[0]); e.target.value = ''; });
 $('#bUndo').addEventListener('click', undo); $('#bRedo').addEventListener('click', redo); $('#bDel').addEventListener('click', deleteSel);
 $('#bZin').addEventListener('click', () => zoomAt(1.25, W / 2, H / 2)); $('#bZout').addEventListener('click', () => zoomAt(0.8, W / 2, H / 2));
-$('#bFit').addEventListener('click', fit); $('#bRot').addEventListener('click', rotate);
+$('#bFit').addEventListener('click', fit); $('#bRot').addEventListener('click', () => rotate(1)); $('#bRotL').addEventListener('click', () => rotate(-1));
 $('#bReset').addEventListener('click', async () => {
   if (!S.file) return;
   if (!(await ask('Reset measurements?', 'This clears every traced area and the scale on all pages of this drawing. You can still undo it.', 'Reset'))) return;

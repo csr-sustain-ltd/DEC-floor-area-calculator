@@ -189,6 +189,10 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .split th{font-size:11px;text-align:right;color:var(--muted);font-weight:600;padding:4px;border-bottom:1px solid var(--border-color);white-space:nowrap}
 .split td{text-align:right;padding:5px 4px;border-bottom:1px solid var(--border-color);white-space:nowrap}
 .split th:first-child,.split td:first-child{text-align:left;white-space:normal}
+.split .kpm{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.bsel{display:grid;gap:6px;min-width:0}
+.bld .g2{align-items:start}
+.bld .bnote{margin:-4px 0 0}
 .split tfoot td{font-weight:700;color:var(--primary-color)}
 .tblwrap{overflow-x:auto}
 .sigpad{width:100%;height:110px;border:1px dashed var(--primary-line);border-radius:8px;background:var(--white);touch-action:none;cursor:crosshair;display:block}
@@ -222,6 +226,7 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .sv-sign{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:16px;align-items:center}
 .sv-sign img{max-width:100%;height:80px;object-fit:contain;border:1px dashed var(--primary-line);border-radius:8px;background:var(--white)}
 .sv-missing{height:80px;display:grid;place-items:center;border:1px dashed #F5D9A8;border-radius:8px;color:var(--warn);font-size:12.5px;background:var(--warn-soft)}
+.stbl .kpm{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
 .sv-empty{color:var(--muted);font-size:13.5px}
 @media (max-width:900px){.sumview{grid-row:2;height:auto;max-height:none}.sv-sign{grid-template-columns:1fr}}
 .ribbon{position:relative;z-index:20;display:flex;flex-direction:column;min-width:0;background:var(--white);border-bottom:1px solid var(--border-color)}
@@ -247,8 +252,8 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .renergy #energyBox{display:grid;grid-template-columns:minmax(280px,1fr) minmax(0,1.4fr);gap:8px 28px;align-items:start}
 .renergy #energyBox > .note{grid-column:1/-1;margin:0}
 @media (max-width:1200px){.renergy #energyBox{grid-template-columns:1fr}}
-.rsitebox{display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.6fr);gap:14px 28px;min-width:0}
-.rsitebox .blds{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rsitebox{display:grid;grid-template-columns:minmax(0,1fr);gap:14px 28px;min-width:0}
+.rsitebox .blds{grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
 .rsitebox .blds > .rg-cap,.rsitebox .blds > .row,.rsitebox .blds > .note{grid-column:1/-1}
 .rsign{display:grid;grid-template-columns:minmax(200px,1fr) minmax(220px,1fr) minmax(260px,330px) minmax(190px,230px);gap:14px 28px}
 .rdl .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%}
@@ -385,7 +390,7 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
     <div class="rpanel ov" data-rp="site" hidden><button class="ovclose" type="button" data-close title="Close (Esc)" aria-label="Close">×</button><div class="rbody rsite">
       <div class="rcol"><div class="rg-cap">Current floor</div><div id="drawInfo" style="display:grid;gap:8px"></div></div>
       <div id="siteBox" class="rsitebox"></div>
-      <div class="rcol renergy" id="energySec" hidden><div class="rg-cap">Energy split by floor area</div><div id="energyBox" style="display:grid;gap:10px"></div></div>
+      <div class="rcol renergy" id="energySec"><div class="rg-cap" id="energyCap">Energy for the assessment period</div><div id="energyBox" style="display:grid;gap:10px"></div></div>
     </div></div>
     <div class="rpanel ov" data-rp="sign" id="signSec" hidden><button class="ovclose" type="button" data-close title="Close (Esc)" aria-label="Close">×</button><div class="rbody rsign">
       <div class="rcol"><div class="rg-cap">Report details</div>
@@ -484,7 +489,8 @@ const PT_M = 0.0254 / 72;           // one PDF point in metres at sheet size
 const APP_ID = 'floor-area-measure';
 
 let W = 0, H = 0, dpr = 1;
-const defSite = () => ({ bench: ['', '', '', ''], buildings: [{ id: 1, name: '', prev: '', manual: '' }], nextB: 2, energy: { elec: '', gas: '', other: '', otherName: '' } });
+const newBld = id => ({ id, name: '', prev: '', manual: '', bench: ['', '', '', ''], benchOther: [false, false, false, false] });
+const defSite = () => ({ buildings: [newBld(1)], nextB: 2, energy: { elec: '', gas: '', other: '', otherName: '' } });
 const S = { file: null, pages: [], polys: [], nextId: 1, meta: { building: '', ref: '', assessor: '' }, lenUnit: 'm', isSample: false, site: defSite(), sign: { date: '', sig: null, confirm: false } };
 let lastBench = null;
 let cur = 0;
@@ -555,8 +561,13 @@ function totals() {
 }
 /* ---------- benchmarks, buildings and energy split ---------- */
 const numOrNull = v => { const n = parseNum(v); return isFinite(n) ? n : null; };
-const benchIdx = () => { const ix = []; S.site.bench.forEach((b, i) => { if (b && b.trim()) ix.push(i); }); return ix.length ? ix : [0]; };
-const benchName = i => ((S.site.bench[i] || '').trim()) || `Benchmark ${i + 1}`;
+const BENCH_LIST = ['General office', 'High street agency', 'General retail', 'Large non-food shop', 'Small food store', 'Large food store', 'Restaurant', 'Bar, pub or licensed club', 'Hotel', 'Cultural activities', 'Entertainment halls', 'Swimming pool centre', 'Fitness and health centre', 'Dry sports and leisure facility', 'Covered car park', 'Public buildings with light usage', 'Schools and seasonal public buildings', 'University campus', 'Clinic', 'Hospital - clinical and research', 'Long term residential', 'General accommodation', 'Emergency services', 'Laboratory or operating theatre', 'Public waiting or circulation', 'Terminal', 'Workshop', 'Storage facility', 'Cold storage'];
+const bOfPage = i => S.site.buildings.find(b => b.id === bldIdOf(i)) || S.site.buildings[0];
+const bBench = b => (b && Array.isArray(b.bench)) ? b.bench : ['', '', '', ''];
+const benchIdx = (b = bOfPage(cur)) => { const ix = []; bBench(b).forEach((n, i) => { if (n && n.trim()) ix.push(i); }); return ix.length ? ix : [0]; };
+const benchName = (i, b = bOfPage(cur)) => ((bBench(b)[i] || '').trim()) || `Benchmark ${i + 1}`;
+const hasEnergy = () => ['elec', 'gas', 'other'].some(k => numOrNull(S.site.energy[k]) != null);
+const perM2 = (v, a) => (v != null && a > 0) ? nf(v / a, 1) + ' kWh/m²' : '';
 const bldIdOf = i => (S.pages[i] && S.site.buildings.some(b => b.id === S.pages[i].bld)) ? S.pages[i].bld : S.site.buildings[0].id;
 const bldName = b => (b.name || '').trim() || (S.site.buildings.length === 1 ? ((S.meta.building || '').trim() || 'Building') : `Building ${S.site.buildings.indexOf(b) + 1}`);
 function bldSummary(b) {
@@ -1035,7 +1046,7 @@ function finishDraft() {
   else if (d.kind === 'unc') name = 'Plant room';
   else if (S.pages.length > 1) { const m = S.polys.filter(p => p.kind === d.kind && p.page === cur).length + 1; name = d.kind === 'exc' ? `${lbl(cur)} – exclusion ${m}` : (m === 1 ? lbl(cur) : `${lbl(cur)} – area ${m}`); }
   else name = d.kind === 'exc' ? `Exclusion ${n}` : (n === 1 ? 'Ground floor' : `Area ${n}`);
-  let bench = lastBench != null && benchIdx().includes(lastBench) ? lastBench : benchIdx()[0];
+  let bench = lastBench != null && benchIdx(bOfPage(cur)).includes(lastBench) ? lastBench : benchIdx(bOfPage(cur))[0];
   if (d.kind === 'inc') { const prevA = S.polys.filter(p => p.page === cur && p.kind === 'inc').pop(); if (prevA && lastBench == null) bench = prevA.bench || 0; }
   else if (d.kind === 'exc') { const lp = labelPt(d.pts), host = S.polys.filter(p => p.page === cur && p.kind === 'inc').reverse().find(p => pip(lp, p.pts)); if (host) bench = host.bench || 0; }
   const poly = { id: S.nextId, page: cur, name, kind: d.kind, bench, pts: d.pts };
@@ -1137,12 +1148,12 @@ function updateNumbers() {
 function renderBsum() {
   const box = $('#bsum');
   if (S.file && S.polys.length) {
-    const multiB = S.site.buildings.length > 1, named = S.site.bench.some(x => x && x.trim()); let h = '';
+    const multiB = S.site.buildings.length > 1; let h = '';
     for (const b of S.site.buildings) {
       const sm = bldSummary(b); if (!sm.measured && !sm.prev) continue;
       if (multiB) h += `<h4>${esc(bldName(b))}</h4>`;
-      const ks = Object.keys(sm.byBench);
-      if (named || ks.length > 1) ks.forEach(k => { h += `<div class="r"><span>${esc(benchName(+k))}</span><b>${fA(sm.byBench[k])} m²</b></div>`; });
+      const ks = Object.keys(sm.byBench), named = bBench(b).some(x => x && x.trim());
+      if (named || ks.length > 1) ks.forEach(k => { h += `<div class="r"><span>${esc(benchName(+k, b))}</span><b>${fA(sm.byBench[k])} m²</b></div>`; });
       if (sm.measured) h += `<div class="r tu"><span>TUFA</span><b>${fA(sm.tufa)} m²</b></div>`;
       if (sm.prev) h += `<div class="r"><span>Previous DEC ${fA(sm.prev)} m²</span>${sm.diff != null ? `<b class="${Math.abs(sm.diff) > PREV_TOL ? 'diff-warn' : 'diff-ok'}">${sm.diff >= 0 ? '+' : '−'}${nf(Math.abs(sm.diff) * 100, 1)} %</b>` : '<b>—</b>'}</div>`;
       if (sm.uncTot) h += `<div class="r"><span>Unconditioned (recorded)</span><b style="color:#6D28D9">${fA(sm.uncTot)} m²</b></div>`;
@@ -1152,49 +1163,68 @@ function renderBsum() {
   document.querySelectorAll('[data-bmeas]').forEach(el => { const b = S.site.buildings.find(x => x.id === +el.dataset.bmeas); if (!b) return; const sm = bldSummary(b); el.textContent = sm.measured ? `Measured here: ${fA(sm.tufa)} m² on ${sm.pages.length} floor${sm.pages.length === 1 ? '' : 's'}` : (S.pages.length ? 'No measured floors assigned yet' : ''); });
   renderSplit();
 }
+function benchSelect(b, i) {
+  const v = (bBench(b)[i] || '').trim(), custom = !!v && !BENCH_LIST.includes(v), other = custom || !!(b.benchOther && b.benchOther[i]);
+  return `<div class="bsel"><select class="in txt" data-bsel="${i}" aria-label="Benchmark category ${i + 1}">
+      <option value="">${i ? `Category ${i + 1}: not used` : 'Category 1: choose…'}</option>
+      ${BENCH_LIST.map(n => `<option${n === v ? ' selected' : ''}>${esc(n)}</option>`).join('')}
+      <option value="__other"${other ? ' selected' : ''}>Other (type a name)…</option></select>
+    ${other ? `<input class="in txt" data-bench="${i}" maxlength="60" placeholder="Type the category name" value="${esc(custom ? v : '')}" aria-label="Custom benchmark category ${i + 1}">` : ''}</div>`;
+}
 function renderSite() {
   const box = $('#siteBox'), one = S.site.buildings.length === 1;
-  let h = `<div class="rcol"><div class="rg-cap">Benchmark categories</div><div class="fl" style="display:none">Benchmark categories</div><p class="note">Up to four, named as in your DEC software. Every area and void is assigned to one.</p>
-    <div class="g2">${[0, 1, 2, 3].map(i => `<input class="in txt" data-bench="${i}" list="benchSug" maxlength="60" placeholder="Category ${i + 1}" value="${esc(S.site.bench[i] || '')}" aria-label="Benchmark category ${i + 1}">`).join('')}</div>
-    </div><div class="rcol blds"><div class="rg-cap">${one ? 'Building' : 'Buildings on this site'}</div>`;
+  let h = `<div class="rcol blds"><div class="rg-cap">${one ? 'Building' : 'Buildings on this site'}</div>`;
   S.site.buildings.forEach((b, i) => {
+    if (!Array.isArray(b.bench)) b.bench = ['', '', '', '']; if (!Array.isArray(b.benchOther)) b.benchOther = [false, false, false, false];
     h += `<div class="bld" data-bid="${b.id}"><div class="hdr"><input class="in txt" style="flex:1;min-width:0" data-bf="name" maxlength="60" placeholder="${one ? 'Building name (optional)' : 'Building ' + (i + 1)}" value="${esc(b.name)}" aria-label="Building name">${one ? '' : `<button class="mini" type="button" data-bdel="${b.id}" title="Remove this building" aria-label="Remove building"><svg class="i"><use href="#i-trash"/></svg></button>`}</div>
       <span class="note" data-bmeas="${b.id}"></span>
+      <div class="fl">Benchmark categories</div><p class="note bnote">Up to four for this building, as named in your DEC software.</p>
+      <div class="g2">${[0, 1, 2, 3].map(k => benchSelect(b, k)).join('')}</div>
       <div class="g2"><label class="fl">Area on previous DEC (m²)<input class="in" data-bf="prev" inputmode="decimal" value="${esc(b.prev)}" placeholder="optional"></label>${one ? '' : `<label class="fl">Area from elsewhere (m²)<input class="in" data-bf="manual" inputmode="decimal" value="${esc(b.manual)}" placeholder="if not measured here"></label>`}</div></div>`;
   });
   h += `<div class="row"><button class="btn" type="button" id="bAddB">Add building</button></div>`;
   if (!one) h += `<p class="note">Assign each floor to its building under Current floor. For a building measured on another drawing, enter its area under “Area from elsewhere”.</p>`;
   h += '</div>';
   box.innerHTML = h;
-  $('#energySec').hidden = one;
+  $('#energySec').hidden = false;
   renderEnergy(); renderBsum();
 }
 $('#siteBox').addEventListener('input', e => {
-  const t = e.target;
-  if (t.dataset.bench != null) { S.site.bench[+t.dataset.bench] = t.value; dirty = true; renderList(); requestDraw(); return; }
-  const card = t.closest('[data-bid]'), b = card && S.site.buildings.find(x => x.id === +card.dataset.bid);
-  if (b && t.dataset.bf) { b[t.dataset.bf] = t.value; dirty = true; updateNumbers(); if (t.dataset.bf === 'name') { renderFloors(); const sel = $('#pgBld'); if (sel) [...sel.options].forEach(o => { const bb = S.site.buildings.find(x => x.id === +o.value); if (bb) o.textContent = bldName(bb); }); } }
+  const t = e.target, card = t.closest('[data-bid]'), b = card && S.site.buildings.find(x => x.id === +card.dataset.bid); if (!b) return;
+  if (t.dataset.bench != null) { b.bench[+t.dataset.bench] = t.value; dirty = true; renderList(); requestDraw(); renderSumView(); return; }
+  if (t.dataset.bf) { b[t.dataset.bf] = t.value; dirty = true; updateNumbers(); if (t.dataset.bf === 'name') { renderFloors(); renderSplit(); const sel = $('#pgBld'); if (sel) [...sel.options].forEach(o => { const bb = S.site.buildings.find(x => x.id === +o.value); if (bb) o.textContent = bldName(bb); }); } }
+});
+$('#siteBox').addEventListener('change', e => {
+  const t = e.target; if (t.dataset.bsel == null) return;
+  const card = t.closest('[data-bid]'), b = card && S.site.buildings.find(x => x.id === +card.dataset.bid); if (!b) return; const i = +t.dataset.bsel;
+  if (t.value === '__other') { b.benchOther[i] = true; if (BENCH_LIST.includes(b.bench[i])) b.bench[i] = ''; }
+  else { b.benchOther[i] = false; b.bench[i] = t.value; }
+  dirty = true; renderSite(); renderList(); requestDraw(); renderSumView();
+  if (t.value === '__other') { const inp = document.querySelector(`[data-bid="${b.id}"] [data-bench="${i}"]`); if (inp) inp.focus(); }
 });
 $('#siteBox').addEventListener('click', e => {
-  if (e.target.closest('#bAddB')) { S.site.buildings.push({ id: S.site.nextB++, name: '', prev: '', manual: '' }); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); toast('Building added. Assign floors to it under Current floor on this tab.'); return; }
+  if (e.target.closest('#bAddB')) { S.site.buildings.push(newBld(S.site.nextB++)); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); toast('Building added. Assign floors to it under Current floor on this tab.'); return; }
   const del = e.target.closest('[data-bdel]'); if (!del) return; const id = +del.dataset.bdel;
-  S.site.buildings = S.site.buildings.filter(b => b.id !== id); S.pages.forEach(pg => { if (pg.bld === id) pg.bld = S.site.buildings[0].id; }); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); updateNumbers();
+  S.site.buildings = S.site.buildings.filter(b => b.id !== id); S.pages.forEach(pg => { if (pg.bld === id) pg.bld = S.site.buildings[0].id; }); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); updateNumbers(); renderList();
 });
 function renderEnergy() {
-  if (S.site.buildings.length < 2) { $('#energyBox').innerHTML = ''; return; }
-  const e = S.site.energy, f = (k, label, ph, txt) => `<label class="fl">${label}<input class="in${txt ? ' txt' : ''}" data-en="${k}" ${txt ? '' : 'inputmode="decimal"'} value="${esc(e[k])}" placeholder="${ph}"></label>`;
-  $('#energyBox').innerHTML = `<p class="note">Only for buildings that share a meter. Enter the site totals for the assessment period and each building gets a share in proportion to its floor area.</p>
-    <div class="g2">${f('elec', 'Electricity (kWh)', 'site total', 0)}${f('gas', 'Natural gas (kWh)', 'site total', 0)}${f('other', 'Other fuel (kWh)', 'optional', 0)}${f('otherName', 'Other fuel type', 'e.g. Fuel oil', 1)}</div>
+  const one = S.site.buildings.length === 1, e = S.site.energy, ph = one ? 'total for the period' : 'site total';
+  const f = (k, label, p, txt) => `<label class="fl">${label}<input class="in${txt ? ' txt' : ''}" data-en="${k}" ${txt ? '' : 'inputmode="decimal"'} value="${esc(e[k])}" placeholder="${p}"></label>`;
+  $('#energyCap').textContent = one ? 'Energy for the assessment period' : 'Energy split by floor area';
+  $('#energyBox').innerHTML = `<p class="note">${one ? 'Enter the building’s energy use for the assessment period to see it per m² of floor area.' : 'If the buildings share a meter, enter the site totals for the assessment period. Each building gets a share in proportion to its floor area, shown with its use per m².'}</p>
+    <div class="g2">${f('elec', 'Electricity (kWh)', ph, 0)}${f('gas', 'Natural gas (kWh)', ph, 0)}${f('other', 'Other fuel (kWh)', 'optional', 0)}${f('otherName', 'Other fuel type', 'e.g. Fuel oil', 1)}</div>
     <div class="tblwrap" id="splitTbl"></div>`;
   renderSplit();
 }
 $('#energyBox').addEventListener('input', e => { const k = e.target.dataset.en; if (!k) return; S.site.energy[k] = e.target.value; dirty = true; renderSplit(); renderSumView(); });
 function renderSplit() {
-  const el = $('#splitTbl'); if (!el || S.site.buildings.length < 2) return;
-  const sp = energySplit(), cols = [['elec', 'Elec. kWh'], ['gas', 'Gas kWh'], ['other', (S.site.energy.otherName || 'Other') + ' kWh']].filter(([k]) => sp.E[k] != null);
-  el.innerHTML = `<table class="split"><thead><tr><th>Building</th><th>Area m²</th><th>Share</th>${cols.map(c => `<th>${esc(c[1])}</th>`).join('')}</tr></thead>
-    <tbody>${sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' <span class="note">(entered)</span>' : ''}</td><td>${fA(r.splitArea)}</td><td>${nf(r.share * 100, 1)} %</td>${cols.map(c => `<td>${nf(r[c[0]], 0)}</td>`).join('')}</tr>`).join('')}</tbody>
-    <tfoot><tr><td>Site total</td><td>${fA(sp.total)}</td><td>${sp.total ? '100 %' : '—'}</td>${cols.map(c => `<td>${nf(sp.E[c[0]], 0)}</td>`).join('')}</tr></tfoot></table>`;
+  const el = $('#splitTbl'); if (!el) return;
+  const one = S.site.buildings.length === 1, sp = energySplit(), cols = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
+  if (!cols.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<table class="split"><thead><tr><th>Building</th><th>Floor area</th>${one ? '' : '<th>Share</th>'}${cols.map(c => `<th>${esc(c[1])}</th>`).join('')}</tr></thead>
+    <tbody>${sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' <span class="note">(entered)</span>' : ''}</td><td>${fA(r.splitArea)} m²</td>${one ? '' : `<td>${nf(r.share * 100, 1)} %</td>`}${cols.map(c => `<td>${nf(r[c[0]], 0)} kWh${r.splitArea > 0 ? `<small class="kpm">${perM2(r[c[0]], r.splitArea)}</small>` : ''}</td>`).join('')}</tr>`).join('')}</tbody>
+    ${one ? '' : `<tfoot><tr><td>Site total</td><td>${fA(sp.total)} m²</td><td>${sp.total ? '100 %' : '—'}</td>${cols.map(c => `<td>${nf(sp.E[c[0]], 0)} kWh</td>`).join('')}</tr></tfoot>`}</table>
+    ${sp.total > 0 ? '' : '<p class="note">Trace the floor area (or enter the area) to see energy per m².</p>'}`;
 }
 let curTab = 'measure', scaleOpen = false, scaleClosed = false;
 function syncScaleStrip() { const pgc = S.file && S.pages[cur] && S.pages[cur].calib; const vis = !!(S.file && curTab === 'measure' && !scaleClosed && (!pgc || tool === 'calib' || manualOpen || scaleOpen)); $('#scaleStrip').hidden = !vis; ws.classList.toggle('hud-low', vis); }
@@ -1230,8 +1260,8 @@ function renderSumView() {
     h += `<div class="sv-card"><h3>${esc(bldName(sm.b))}<small>${sm.pages.length} floor${sm.pages.length === 1 ? '' : 's'}</small></h3><div class="sv-body">`;
     if (sm.measured) {
       h += `<div class="tblwrap"><table class="stbl"><thead><tr><th>Floor</th><th>Benchmark category</th><th class="n">Measured area</th><th class="n">Void area</th><th class="n">Benchmark area</th></tr></thead><tbody>`;
-      h += sm.rows.map(r => `<tr class="go" data-pg="${r.page}" title="Show ${esc(lbl(r.page))} on the drawing"><td>${esc(lbl(r.page))}</td><td>${esc(benchName(r.bench))}</td><td class="n">${m2(r.gross)}</td><td class="n void">${r.void ? '− ' + m2(r.void) : '—'}</td><td class="n">${m2(r.net)}</td></tr>`).join('');
-      h += Object.keys(sm.byBench).map(k => `<tr class="subt"><td>Total</td><td>${esc(benchName(+k))}</td><td></td><td></td><td class="n">${m2(sm.byBench[k])}</td></tr>`).join('');
+      h += sm.rows.map(r => `<tr class="go" data-pg="${r.page}" title="Show ${esc(lbl(r.page))} on the drawing"><td>${esc(lbl(r.page))}</td><td>${esc(benchName(r.bench, sm.b))}</td><td class="n">${m2(r.gross)}</td><td class="n void">${r.void ? '− ' + m2(r.void) : '—'}</td><td class="n">${m2(r.net)}</td></tr>`).join('');
+      h += Object.keys(sm.byBench).map(k => `<tr class="subt"><td>Total</td><td>${esc(benchName(+k, sm.b))}</td><td></td><td></td><td class="n">${m2(sm.byBench[k])}</td></tr>`).join('');
       h += `<tr class="tufa"><td colspan="4">TUFA (total useful floor area)</td><td class="n">${m2(sm.tufa)}</td></tr></tbody></table></div>`;
     } else if (sm.manual) h += `<div class="sv-prev"><span>Area entered (measured elsewhere)</span><b>${m2(sm.manual)}</b></div>`;
     else h += `<p class="sv-empty">No measured floors assigned to this building yet.</p>`;
@@ -1239,11 +1269,12 @@ function renderSumView() {
     if (sm.unc.length) h += `<h4>Unconditioned areas · recorded only, not added to or subtracted from the TUFA</h4><div class="tblwrap"><table class="stbl"><thead><tr><th>Floor</th><th>Type</th><th class="n">Area</th></tr></thead><tbody>${sm.unc.map(u => `<tr class="go" data-pg="${u.page}"><td>${esc(lbl(u.page))}</td><td>${esc(u.name)}</td><td class="n unc">${m2(u.area)}</td></tr>`).join('')}<tr class="subt"><td colspan="2">Total unconditioned</td><td class="n unc">${m2(sm.uncTot)}</td></tr></tbody></table></div>`;
     h += `</div></div>`;
   }
-  if (multiB) {
+  if (multiB || hasEnergy()) {
     const sp = energySplit(), ec = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
-    h += `<div class="sv-card"><h3>Energy split by floor area<small>site totals × each building's share of the floor area</small></h3><div class="sv-body"><div class="tblwrap"><table class="stbl"><thead><tr><th>Building</th><th class="n">Floor area</th><th class="n">Share</th>${ec.map(c => `<th class="n">${esc(c[1])} (kWh)</th>`).join('')}</tr></thead><tbody>`;
-    h += sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' (entered)' : ''}</td><td class="n">${m2(r.splitArea)}</td><td class="n">${nf(r.share * 100, 1)} %</td>${ec.map(c => `<td class="n">${nf(r[c[0]], 0)}</td>`).join('')}</tr>`).join('');
-    h += `<tr class="tufa"><td>Site total</td><td class="n">${m2(sp.total)}</td><td class="n">${sp.total ? '100 %' : '—'}</td>${ec.map(c => `<td class="n">${nf(sp.E[c[0]], 0)}</td>`).join('')}</tr></tbody></table></div>${ec.length ? '' : '<p class="sv-empty">Enter the site energy totals in the Energy split panel to see each building’s share in kWh.</p>'}</div></div>`;
+    h += `<div class="sv-card"><h3>${multiB ? 'Energy split by floor area<small>site totals × each building’s share of the floor area</small>' : 'Energy for the assessment period<small>energy use per m² of floor area</small>'}</h3><div class="sv-body"><div class="tblwrap"><table class="stbl"><thead><tr><th>Building</th><th class="n">Floor area</th>${multiB ? '<th class="n">Share</th>' : ''}${ec.map(c => `<th class="n">${esc(c[1])}</th>`).join('')}</tr></thead><tbody>`;
+    h += sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' (entered)' : ''}</td><td class="n">${m2(r.splitArea)}</td>${multiB ? `<td class="n">${nf(r.share * 100, 1)} %</td>` : ''}${ec.map(c => `<td class="n">${nf(r[c[0]], 0)} kWh${r.splitArea > 0 ? `<small class="kpm">${perM2(r[c[0]], r.splitArea)}</small>` : ''}</td>`).join('')}</tr>`).join('');
+    if (multiB) h += `<tr class="tufa"><td>Site total</td><td class="n">${m2(sp.total)}</td><td class="n">${sp.total ? '100 %' : '—'}</td>${ec.map(c => `<td class="n">${nf(sp.E[c[0]], 0)} kWh</td>`).join('')}</tr>`;
+    h += `</tbody></table></div>${ec.length ? '' : '<p class="sv-empty">Enter the energy for the assessment period on the Site &amp; floors tab to see it here.</p>'}</div></div>`;
   }
   const w = warnings();
   if (w.length) h += `<div class="sv-card"><h3>Items to check<small>${w.length}</small></h3><div class="sv-body"><ul class="warns" id="svWarns">${w.map((x, i) => `<li class="iss ${x.sev === 'err' ? 'err' : ''}" data-i="${i}"><span class="tg">${ISSUE_TAG[x.type] || 'Check'}</span><span>${esc(x.msg)}</span></li>`).join('')}</ul></div></div>`;
@@ -1293,7 +1324,7 @@ function renderList() {
   const itemHtml = p => `<li class="item ${p.kind === 'inc' ? '' : p.kind} ${p.id === sel ? 'sel' : ''}" data-id="${p.id}">
     <span class="sw"></span><input class="nm" value="${esc(p.name)}" aria-label="Area name" maxlength="60"${p.kind === 'unc' ? ' list="uncSug"' : ''}><span class="ar"></span>
     <div class="opts"><select class="mini kind-${p.kind}" data-act="kind" aria-label="Area type" title="Area type">${['inc', 'exc', 'unc', 'bnd'].map(k => `<option value="${k}"${p.kind === k ? ' selected' : ''}>${KIND_NAME[k]}</option>`).join('')}</select>
-      ${p.kind === 'inc' || p.kind === 'exc' ? `<select class="mini" data-act="bench" aria-label="Benchmark category" title="Benchmark category">${(benchIdx().includes(p.bench || 0) ? benchIdx() : benchIdx().concat([p.bench || 0])).map(i => `<option value="${i}"${(p.bench || 0) === i ? ' selected' : ''}>${esc(benchName(i))}</option>`).join('')}</select>` : ''}
+      ${p.kind === 'inc' || p.kind === 'exc' ? (() => { const bb = bOfPage(p.page), ix = benchIdx(bb); return `<select class="mini" data-act="bench" aria-label="Benchmark category" title="Benchmark category (set on the Site & floors tab)">${(ix.includes(p.bench || 0) ? ix : ix.concat([p.bench || 0])).map(i => `<option value="${i}"${(p.bench || 0) === i ? ' selected' : ''}>${esc(benchName(i, bb))}</option>`).join('')}</select>`; })() : ''}
       <button class="mini" data-act="del" title="Delete area" aria-label="Delete ${esc(p.name)}" style="margin-left:auto"><svg class="i"><use href="#i-trash"/></svg></button></div>
     <div class="sub"><span class="meta"></span></div></li>`;
   if (S.pages.length > 1) ul.innerHTML = S.pages.map((pg, i) => { if (pg.removed) return ''; const ps = S.polys.filter(p => p.page === i); if (!ps.length) return ''; return `<li class="ghead" data-pg="${i}">${esc(lbl(i))}<span data-fsub="${i}"></span></li>` + ps.map(itemHtml).join(''); }).join('');
@@ -1488,7 +1519,7 @@ async function loadProject(f) {
   try { await commitDrawing({ name: o.file.name, type: o.file.type, mime: o.file.mime, buf: b64ToBuf(o.file.data) }); }
   catch (e) { toast('Could not open the drawing stored in this project: ' + (e.message || e)); return; }
   (o.pages || []).forEach((p, i) => { if (S.pages[i]) { S.pages[i].calib = p.calib || null; S.pages[i].ang = p.ang != null ? p.ang : (p.rot || 0) * 90; if ('label' in p) S.pages[i].label = p.label || null; if (p.bld) S.pages[i].bld = p.bld; if (p.removed) S.pages[i].removed = true; } });
-  S.site = Object.assign(defSite(), o.site || {}); if (!Array.isArray(S.site.buildings) || !S.site.buildings.length) S.site.buildings = defSite().buildings; S.site.bench = [0, 1, 2, 3].map(i => (S.site.bench && S.site.bench[i]) || ''); S.site.energy = Object.assign(defSite().energy, S.site.energy || {}); S.site.nextB = Math.max(S.site.nextB || 2, ...S.site.buildings.map(b => b.id + 1));
+  S.site = Object.assign(defSite(), o.site || {}); if (!Array.isArray(S.site.buildings) || !S.site.buildings.length) S.site.buildings = defSite().buildings; const oldBench = (o.site && Array.isArray(o.site.bench)) ? o.site.bench : []; S.site.buildings = S.site.buildings.map(b => Object.assign(newBld(b.id), b, { bench: Array.isArray(b.bench) ? [0, 1, 2, 3].map(i => b.bench[i] || '') : [0, 1, 2, 3].map(i => oldBench[i] || ''), benchOther: Array.isArray(b.benchOther) ? b.benchOther : [false, false, false, false] })); delete S.site.bench; S.site.energy = Object.assign(defSite().energy, S.site.energy || {}); S.site.nextB = Math.max(S.site.nextB || 2, ...S.site.buildings.map(b => b.id + 1));
   S.sign = Object.assign({ date: '', sig: null, confirm: false }, o.sign || {});
   S.polys = (o.polys || []).filter(p => Array.isArray(p.pts) && p.pts.length >= 3 && p.page < S.pages.length);
   S.nextId = o.nextId || (Math.max(0, ...S.polys.map(p => p.id)) + 1); S.meta = Object.assign({ building: '', ref: '', assessor: '' }, o.meta || {}); S.lenUnit = o.lenUnit === 'mm' ? 'mm' : 'm';
@@ -1569,8 +1600,8 @@ async function exportDocx() {
       if (!sm.measured && !sm.manual && !sm.prev && !sm.unc.length) continue;
       kids.push(H(multiB ? bldName(sm.b) : 'Area by benchmark category'));
       if (sm.measured) {
-        const rows = sm.rows.map(r => [{ t: lbl(r.page) }, { t: benchName(r.bench) }, { t: m2(r.gross), right: true }, { t: r.void ? '- ' + m2(r.void) : '-', right: true, color: AMB }, { t: m2(r.net), right: true }]);
-        Object.keys(sm.byBench).forEach(k => rows.push([{ t: 'Total', bold: true, fill: 'F8FAFC' }, { t: benchName(+k), bold: true, fill: 'F8FAFC' }, { t: '', fill: 'F8FAFC' }, { t: '', fill: 'F8FAFC' }, { t: m2(sm.byBench[k]), right: true, bold: true, fill: 'F8FAFC' }]));
+        const rows = sm.rows.map(r => [{ t: lbl(r.page) }, { t: benchName(r.bench, sm.b) }, { t: m2(r.gross), right: true }, { t: r.void ? '- ' + m2(r.void) : '-', right: true, color: AMB }, { t: m2(r.net), right: true }]);
+        Object.keys(sm.byBench).forEach(k => rows.push([{ t: 'Total', bold: true, fill: 'F8FAFC' }, { t: benchName(+k, sm.b), bold: true, fill: 'F8FAFC' }, { t: '', fill: 'F8FAFC' }, { t: '', fill: 'F8FAFC' }, { t: m2(sm.byBench[k]), right: true, bold: true, fill: 'F8FAFC' }]));
         rows.push([{ t: 'TUFA (total useful floor area)', bold: true, color: TEAL, fill: SOFT, span: 4 }, { t: m2(sm.tufa), right: true, bold: true, color: TEAL, fill: SOFT }]);
         kids.push(table([{ t: 'Floor' }, { t: 'Benchmark category' }, { t: 'Measured area', r: true }, { t: 'Void area', r: true }, { t: 'Benchmark area', r: true }], rows, [1900, 2700, 1770, 1700, 1836]));
       } else if (sm.manual) kids.push(para([run('Area entered (measured elsewhere): ', { color: MUT }), run(m2(sm.manual), { bold: true })]));
@@ -1580,20 +1611,21 @@ async function exportDocx() {
         kids.push(table([{ t: 'Floor' }, { t: 'Type' }, { t: 'Area', r: true }], sm.unc.map(u => [{ t: lbl(u.page) }, { t: u.name }, { t: m2(u.area), right: true, color: VIO }]).concat([[{ t: 'Total unconditioned', bold: true, span: 2, fill: 'F8FAFC' }, { t: m2(sm.uncTot), right: true, bold: true, color: VIO, fill: 'F8FAFC' }]]), [2600, 4706, 2600]));
       }
     }
-    if (multiB) {
+    if (multiB || hasEnergy()) {
       const sp = energySplit(), ec = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
-      kids.push(H('Energy split by floor area'));
-      kids.push(note('Site totals apportioned to each building in proportion to its floor area.'));
-      const wcol = Math.floor((W - 2600 - 1500 - 1100) / Math.max(1, ec.length));
-      kids.push(table([{ t: 'Building' }, { t: 'Floor area', r: true }, { t: 'Share', r: true }].concat(ec.map(c => ({ t: c[1] + ' (kWh)', r: true }))),
-        sp.rows.map(r => [{ t: bldName(r.b) + (r.measured ? '' : r.manual ? ' (entered)' : '') }, { t: m2(r.splitArea), right: true }, { t: nf(r.share * 100, 1) + ' %', right: true }].concat(ec.map(c => ({ t: nf(r[c[0]], 0), right: true }))))
-          .concat([[{ t: 'Site total', bold: true, color: TEAL, fill: SOFT }, { t: m2(sp.total), right: true, bold: true, color: TEAL, fill: SOFT }, { t: sp.total ? '100 %' : '-', right: true, bold: true, color: TEAL, fill: SOFT }].concat(ec.map(c => ({ t: nf(sp.E[c[0]], 0), right: true, bold: true, color: TEAL, fill: SOFT })))]),
-        [2600, 1500, 1100].concat(ec.map(() => wcol))));
+      kids.push(H(multiB ? 'Energy split by floor area' : 'Energy for the assessment period'));
+      kids.push(note(multiB ? 'Site totals apportioned to each building in proportion to its floor area, with each building’s energy use per m².' : 'Energy use for the assessment period and per m² of floor area.'));
+      const fixed = multiB ? [2600, 1500, 1100] : [3200, 1700], wcol = Math.floor((W - fixed.reduce((a2, b2) => a2 + b2, 0)) / Math.max(1, ec.length));
+      const kcell = (v, a2) => ({ t: `${nf(v, 0)} kWh${a2 > 0 ? '  (' + perM2(v, a2) + ')' : ''}`, right: true });
+      kids.push(table([{ t: 'Building' }, { t: 'Floor area', r: true }].concat(multiB ? [{ t: 'Share', r: true }] : []).concat(ec.map(c => ({ t: c[1], r: true }))),
+        sp.rows.map(r => [{ t: bldName(r.b) + (r.measured ? '' : r.manual ? ' (entered)' : '') }, { t: m2(r.splitArea), right: true }].concat(multiB ? [{ t: nf(r.share * 100, 1) + ' %', right: true }] : []).concat(ec.map(c => kcell(r[c[0]], r.splitArea))))
+          .concat(multiB ? [[{ t: 'Site total', bold: true, color: TEAL, fill: SOFT }, { t: m2(sp.total), right: true, bold: true, color: TEAL, fill: SOFT }, { t: sp.total ? '100 %' : '-', right: true, bold: true, color: TEAL, fill: SOFT }].concat(ec.map(c => ({ t: nf(sp.E[c[0]], 0) + ' kWh', right: true, bold: true, color: TEAL, fill: SOFT })))] : []),
+        fixed.concat(ec.map(() => wcol))));
     }
     // every traced area
     kids.push(H('Traced areas'));
     kids.push(table([{ t: 'Floor' }, { t: 'Name' }, { t: 'Type' }, { t: 'Benchmark' }, { t: 'Area', r: true }, { t: 'Perimeter', r: true }],
-      rowsForExport().map(r => [{ t: lbl(r.p.page) }, { t: r.p.name }, { t: { inc: 'Included', exc: 'Void', unc: 'Unconditioned', bnd: 'Boundary (ref.)' }[r.p.kind], color: r.p.kind === 'exc' ? AMB : r.p.kind === 'unc' ? VIO : INK }, { t: r.p.kind === 'inc' || r.p.kind === 'exc' ? benchName(r.p.bench || 0) : '-' }, { t: r.a == null ? 'no scale' : (r.p.kind === 'exc' ? '- ' : '') + m2(r.a), right: true }, { t: r.per == null ? '-' : fL(r.per), right: true }]),
+      rowsForExport().map(r => [{ t: lbl(r.p.page) }, { t: r.p.name }, { t: { inc: 'Included', exc: 'Void', unc: 'Unconditioned', bnd: 'Boundary (ref.)' }[r.p.kind], color: r.p.kind === 'exc' ? AMB : r.p.kind === 'unc' ? VIO : INK }, { t: r.p.kind === 'inc' || r.p.kind === 'exc' ? benchName(r.p.bench || 0, bOfPage(r.p.page)) : '-' }, { t: r.a == null ? 'no scale' : (r.p.kind === 'exc' ? '- ' : '') + m2(r.a), right: true }, { t: r.per == null ? '-' : fL(r.per), right: true }]),
       [1500, 2250, 1300, 2000, 1500, 1356]));
     // method
     kids.push(H('Method and calibration'));
@@ -1643,11 +1675,11 @@ async function exportCsv() {
   lines.push([q('Exported'), q(new Date().toLocaleString('en-GB'))].join(','));
   lines.push('');
   lines.push(['Building', 'Page', 'Floor / section', 'Name', 'Type', 'Benchmark category', 'Area (m²)', 'Area unrounded (m²)', 'Perimeter (m)', 'Points', 'Scale method', 'Metres per drawing unit'].map(q).join(','));
-  for (const r of rowsForExport()) lines.push([bldName(S.site.buildings.find(b => b.id === bldIdOf(r.p.page))), r.p.page + 1, lbl(r.p.page), r.p.name, r.p.kind === 'bnd' ? 'Boundary (not counted)' : r.p.kind === 'unc' ? 'Unconditioned (recorded only)' : KIND_NAME[r.p.kind], r.p.kind === 'inc' || r.p.kind === 'exc' ? benchName(r.p.bench || 0) : '', r.a == null ? '' : r.a.toFixed(2), r.a == null ? '' : r.a.toFixed(6), r.per == null ? '' : r.per.toFixed(3), r.p.pts.length, calDesc(r.cal), r.cal ? r.cal.mpu.toPrecision(10) : ''].map(q).join(','));
+  for (const r of rowsForExport()) lines.push([bldName(S.site.buildings.find(b => b.id === bldIdOf(r.p.page))), r.p.page + 1, lbl(r.p.page), r.p.name, r.p.kind === 'bnd' ? 'Boundary (not counted)' : r.p.kind === 'unc' ? 'Unconditioned (recorded only)' : KIND_NAME[r.p.kind], r.p.kind === 'inc' || r.p.kind === 'exc' ? benchName(r.p.bench || 0, bOfPage(r.p.page)) : '', r.a == null ? '' : r.a.toFixed(2), r.a == null ? '' : r.a.toFixed(6), r.per == null ? '' : r.per.toFixed(3), r.p.pts.length, calDesc(r.cal), r.cal ? r.cal.mpu.toPrecision(10) : ''].map(q).join(','));
   lines.push('');
   if (S.pages.length > 1) { lines.push(['Floor subtotals', 'Included (m²)', 'Excluded (m²)', 'Net (m²)'].map(q).join(',')); S.pages.forEach((pg, i) => { const ft = floorTot(i); if (pg.removed || !ft.n) return; lines.push([`${lbl(i)} (page ${i + 1})`, ft.inc.toFixed(2), ft.exc.toFixed(2), ft.net.toFixed(2)].map(q).join(',')); }); lines.push(''); }
   lines.push(['Building', 'Benchmark category', 'Benchmark area (m²)'].map(q).join(','));
-  S.site.buildings.forEach(b => { const sm = bldSummary(b); Object.keys(sm.byBench).forEach(k => lines.push([bldName(b), benchName(+k), sm.byBench[k].toFixed(2)].map(q).join(','))); if (sm.measured) lines.push([bldName(b), 'TUFA', sm.tufa.toFixed(2)].map(q).join(',')); if (sm.prev) lines.push([bldName(b), 'Area on previous DEC', sm.prev.toFixed(2)].map(q).join(',')); if (sm.uncTot) lines.push([bldName(b), 'Unconditioned (recorded only)', sm.uncTot.toFixed(2)].map(q).join(',')); });
+  S.site.buildings.forEach(b => { const sm = bldSummary(b); Object.keys(sm.byBench).forEach(k => lines.push([bldName(b), benchName(+k, b), sm.byBench[k].toFixed(2)].map(q).join(','))); if (sm.measured) lines.push([bldName(b), 'TUFA', sm.tufa.toFixed(2)].map(q).join(',')); if (sm.prev) lines.push([bldName(b), 'Area on previous DEC', sm.prev.toFixed(2)].map(q).join(',')); if (sm.uncTot) lines.push([bldName(b), 'Unconditioned (recorded only)', sm.uncTot.toFixed(2)].map(q).join(',')); });
   lines.push('');
   lines.push([q('Total included (m²)'), q(t.inc.toFixed(2))].join(','));
   lines.push([q('Total excluded (m²)'), q(t.exc.toFixed(2))].join(','));
@@ -1695,7 +1727,7 @@ async function exportPdf() {
     for (const r of RX) {
       if (y > 190) { contPage(); head(); }
       doc.setFontSize(8.5); doc.setTextColor(...(r.p.kind === 'exc' ? orange : r.p.kind === 'bnd' ? mut : r.p.kind === 'unc' ? [109, 40, 217] : ink));
-      doc.text(sa(lbl(r.p.page)).slice(0, 22), 12, y); doc.text(sa(r.p.name).slice(0, 27), 52, y); doc.text({ inc: 'Included', exc: 'Void', unc: 'Uncond. (rec.)', bnd: 'Boundary (ref.)' }[r.p.kind], 104, y); doc.text(r.p.kind === 'inc' || r.p.kind === 'exc' ? sa(benchName(r.p.bench || 0)).slice(0, 32) : '-', 132, y);
+      doc.text(sa(lbl(r.p.page)).slice(0, 22), 12, y); doc.text(sa(r.p.name).slice(0, 27), 52, y); doc.text({ inc: 'Included', exc: 'Void', unc: 'Uncond. (rec.)', bnd: 'Boundary (ref.)' }[r.p.kind], 104, y); doc.text(r.p.kind === 'inc' || r.p.kind === 'exc' ? sa(benchName(r.p.bench || 0, bOfPage(r.p.page))).slice(0, 32) : '-', 132, y);
       doc.text(r.a == null ? 'no scale' : (r.p.kind === 'exc' ? '- ' : '') + fA(r.a), 196, y, { align: 'right' }); doc.text(r.per == null ? '-' : nf(r.per, 3), 222, y, { align: 'right' });
       doc.setTextColor(...mut); doc.text(sa(calDesc(r.cal)), 228, y, { maxWidth: 59 });
       doc.setDrawColor(226, 230, 236); doc.line(10, y + 2.3, 287, y + 2.3); y += 6.5;
@@ -1712,21 +1744,24 @@ async function exportPdf() {
       sub('Benchmark summary');
       for (const sm of sums) {
         if (S.site.buildings.length > 1) { ensure(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(...ink); doc.text(sa(bldName(sm.b)), 10, y); y += 5; }
-        Object.keys(sm.byBench).forEach(k => kvl(benchName(+k), `${fA(sm.byBench[k])} m²`));
+        Object.keys(sm.byBench).forEach(k => kvl(benchName(+k, sm.b), `${fA(sm.byBench[k])} m²`));
         if (sm.measured) kvl('TUFA (total useful floor area)', `${fA(sm.tufa)} m²`, true, teal); else if (sm.manual) kvl('Area entered (measured elsewhere)', `${fA(sm.manual)} m²`);
         if (sm.prev) kvl(`Area on previous DEC ${fA(sm.prev)} m²`, sm.diff != null ? `${sm.diff >= 0 ? '+' : '-'}${nf(Math.abs(sm.diff) * 100, 1)} %` : '-', false, sm.diff != null && Math.abs(sm.diff) > PREV_TOL ? orange : mut);
         if (sm.unc.length) { kvl('Unconditioned areas (recorded only, not in TUFA)', `${fA(sm.uncTot)} m²`, false, [109, 40, 217]); sm.unc.forEach(u => kvl(`   ${lbl(u.page)} - ${u.name}`, `${fA(u.area)} m²`, false, mut)); }
         y += 1.5;
       }
     }
-    // energy split
-    if (S.site.buildings.length > 1) {
-      const sp = energySplit(), ec = [['elec', 'Electricity kWh'], ['gas', 'Gas kWh'], ['other', (S.site.energy.otherName || 'Other') + ' kWh']].filter(([k]) => sp.E[k] != null);
-      sub('Energy split by floor area'); doc.setTextColor(...mut); ensure(5); doc.text(sa('Site totals apportioned to each building in proportion to its floor area.'), 10, y); y += 5;
-      const xs = [10, 120, 145, 180, 215, 250]; ensure(6); doc.setFont('helvetica', 'bold'); doc.setTextColor(...ink);
-      ['Building', 'Area m²', 'Share'].concat(ec.map(c => c[1])).forEach((h, i) => doc.text(sa(h), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 5; doc.setFont('helvetica', 'normal');
-      sp.rows.forEach(r => { ensure(5); doc.setTextColor(...ink); [bldName(r.b), fA(r.splitArea), nf(r.share * 100, 1) + ' %'].concat(ec.map(c => nf(r[c[0]], 0))).forEach((v, i) => doc.text(sa(v), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 4.6; });
-      ensure(5); doc.setFont('helvetica', 'bold'); doc.setTextColor(...teal); ['Site total', fA(sp.total), sp.total ? '100 %' : '-'].concat(ec.map(c => nf(sp.E[c[0]], 0))).forEach((v, i) => doc.text(sa(v), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 5; doc.setFont('helvetica', 'normal');
+    // energy
+    if (S.site.buildings.length > 1 || hasEnergy()) {
+      const multiB = S.site.buildings.length > 1, sp = energySplit(), ec = [['elec', 'Electricity kWh'], ['gas', 'Gas kWh'], ['other', (S.site.energy.otherName || 'Other') + ' kWh']].filter(([k]) => sp.E[k] != null);
+      sub(multiB ? 'Energy split by floor area' : 'Energy for the assessment period'); doc.setTextColor(...mut); ensure(5); doc.text(sa(multiB ? 'Site totals apportioned to each building in proportion to its floor area. Figures in brackets are energy use per m2.' : 'Energy use for the assessment period. Figures in brackets are energy use per m2.'), 10, y); y += 5;
+      const xs = multiB ? [10, 120, 145, 185, 225, 265] : [10, 120, 160, 200, 240];
+      const row = (vals, bold, col) => { ensure(5); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...col); vals.forEach((v, i) => doc.text(sa(v), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 4.8; };
+      const pm = (v, a2) => a2 > 0 && v != null ? ` (${nf(v / a2, 1)}/m2)` : '';
+      row(['Building', 'Area m²'].concat(multiB ? ['Share'] : []).concat(ec.map(c => c[1])), true, ink);
+      sp.rows.forEach(r => row([bldName(r.b), fA(r.splitArea)].concat(multiB ? [nf(r.share * 100, 1) + ' %'] : []).concat(ec.map(c => nf(r[c[0]], 0) + pm(r[c[0]], r.splitArea))), false, ink));
+      if (multiB) row(['Site total', fA(sp.total), sp.total ? '100 %' : '-'].concat(ec.map(c => nf(sp.E[c[0]], 0))), true, teal);
+      doc.setFont('helvetica', 'normal');
     }
     y += 3; if (y > 182) contPage();
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...teal); doc.text('Method', 10, y); y += 5;

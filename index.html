@@ -195,6 +195,9 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .split .kpm{display:block;font-size:11px;color:var(--muted);font-weight:500}
 .bsel{display:grid;gap:6px;min-width:0}
 .bld .g2{align-items:start}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end}
+.g3 .fl{font-size:12px}
+.bkpm:empty{display:none}
 .bld .bnote{margin:-4px 0 0}
 .split tfoot td{font-weight:700;color:var(--primary-color)}
 .tblwrap{overflow-x:auto}
@@ -496,8 +499,8 @@ const PT_M = 0.0254 / 72;           // one PDF point in metres at sheet size
 const APP_ID = 'floor-area-measure';
 
 let W = 0, H = 0, dpr = 1;
-const newBld = id => ({ id, name: '', prev: '', manual: '', bench: ['', '', '', ''], benchOther: [false, false, false, false] });
-const defSite = () => ({ buildings: [newBld(1)], nextB: 2, energy: { elec: '', gas: '', other: '', otherName: '' } });
+const newBld = id => ({ id, name: '', prev: '', manual: '', bench: ['', '', '', ''], benchOther: [false, false, false, false], energy: { elec: '', gas: '', other: '' } });
+const defSite = () => ({ buildings: [newBld(1)], nextB: 2, shared: false, energy: { elec: '', gas: '', other: '', otherName: '' } });
 const S = { file: null, pages: [], polys: [], nextId: 1, meta: { building: '', ref: '', assessor: '' }, lenUnit: 'm', isSample: false, site: defSite(), sign: { date: '', sig: null, confirm: false } };
 let lastBench = null;
 let cur = 0;
@@ -573,7 +576,11 @@ const bOfPage = i => S.site.buildings.find(b => b.id === bldIdOf(i)) || S.site.b
 const bBench = b => (b && Array.isArray(b.bench)) ? b.bench : ['', '', '', ''];
 const benchIdx = (b = bOfPage(cur)) => { const ix = []; bBench(b).forEach((n, i) => { if (n && n.trim()) ix.push(i); }); return ix.length ? ix : [0]; };
 const benchName = (i, b = bOfPage(cur)) => ((bBench(b)[i] || '').trim()) || `Benchmark ${i + 1}`;
-const hasEnergy = () => ['elec', 'gas', 'other'].some(k => numOrNull(S.site.energy[k]) != null);
+const EK = ['elec', 'gas', 'other'];
+const sharedMeter = () => !!S.site.shared && S.site.buildings.length > 1;
+const bEnergy = b => (b.energy || (b.energy = { elec: '', gas: '', other: '' }));
+const fuelName = k => ({ elec: 'Electricity', gas: 'Natural gas', other: (S.site.energy.otherName || '').trim() || 'Other fuel' })[k];
+const hasEnergy = () => sharedMeter() ? EK.some(k => numOrNull(S.site.energy[k]) != null) : S.site.buildings.some(b => EK.some(k => numOrNull(bEnergy(b)[k]) != null));
 const perM2 = (v, a) => (v != null && a > 0) ? nf(v / a, 1) + ' kWh/m²' : '';
 const bldIdOf = i => (S.pages[i] && S.site.buildings.some(b => b.id === S.pages[i].bld)) ? S.pages[i].bld : S.site.buildings[0].id;
 const bldName = b => (b.name || '').trim() || (S.site.buildings.length === 1 ? ((S.meta.building || '').trim() || 'Building') : `Building ${S.site.buildings.indexOf(b) + 1}`);
@@ -593,9 +600,16 @@ function bldSummary(b) {
   return { b, pages, rows, unc, byBench, tufa, uncTot, missing, measured, prev, manual, splitArea: measured ? tufa : (manual || 0), diff: prev && measured ? (tufa - prev) / prev : null };
 }
 function energySplit() {
-  const sums = S.site.buildings.map(bldSummary), total = sums.reduce((t, x) => t + x.splitArea, 0), e = S.site.energy;
-  const E = { elec: numOrNull(e.elec), gas: numOrNull(e.gas), other: numOrNull(e.other) };
-  return { total, E, rows: sums.map(x => { const sh = total ? x.splitArea / total : 0; return Object.assign({}, x, { share: sh, elec: E.elec != null ? E.elec * sh : null, gas: E.gas != null ? E.gas * sh : null, other: E.other != null ? E.other * sh : null }); }) };
+  // Each building has its own energy figures. Only when the buildings share one meter are the
+  // site totals apportioned by floor area.
+  const sums = S.site.buildings.map(bldSummary), total = sums.reduce((t, x) => t + x.splitArea, 0), shared = sharedMeter();
+  if (shared) {
+    const e = S.site.energy, E = { elec: numOrNull(e.elec), gas: numOrNull(e.gas), other: numOrNull(e.other) };
+    return { total, E, shared, rows: sums.map(x => { const sh = total ? x.splitArea / total : 0; return Object.assign({}, x, { share: sh, elec: E.elec != null ? E.elec * sh : null, gas: E.gas != null ? E.gas * sh : null, other: E.other != null ? E.other * sh : null }); }) };
+  }
+  const rows = sums.map(x => { const be = bEnergy(x.b), o = Object.assign({}, x, { share: total ? x.splitArea / total : 0 }); EK.forEach(k => { o[k] = numOrNull(be[k]); }); return o; });
+  const E = {}; EK.forEach(k => { const v = rows.filter(r => r[k] != null); E[k] = v.length ? v.reduce((t, r) => t + r[k], 0) : null; });
+  return { total, E, shared, rows };
 }
 function signIssue() {
   const miss = []; if (!(S.meta.assessor || '').trim()) miss.push('assessor name'); if (!S.sign.date) miss.push('date'); if (!S.sign.sig) miss.push('signature'); if (!S.sign.confirm) miss.push('confirmation tick');
@@ -611,7 +625,8 @@ function warnings() {
   }
   w.push(...analyse().issues);
   S.site.buildings.forEach(b => { const sm = bldSummary(b); if (sm.diff != null && Math.abs(sm.diff) > PREV_TOL) w.push({ type: 'prev', sev: 'warn', page: sm.pages[0] != null ? sm.pages[0] : null, ids: [], msg: `${bldName(b)}: measured ${fA(sm.tufa)} m² is ${nf(Math.abs(sm.diff) * 100, 1)} % ${sm.diff > 0 ? 'above' : 'below'} the previous DEC area (${fA(sm.prev)} m²). Record the reason in your audit file.` });
-    if (S.site.buildings.length > 1 && !sm.measured && !sm.manual) w.push({ type: 'bld', sev: 'warn', page: null, ids: [], msg: `${bldName(b)} has no floors assigned and no area entered, so it gets no share of the site energy.` }); });
+    if (sharedMeter() && !sm.measured && !sm.manual) w.push({ type: 'bld', sev: 'warn', page: null, ids: [], msg: `${bldName(b)} has no floors assigned and no area entered, so it gets no share of the site energy.` });
+    else if (!sharedMeter() && !sm.splitArea && EK.some(k => numOrNull(bEnergy(b)[k]) != null)) w.push({ type: 'bld', sev: 'warn', page: null, ids: [], msg: `${bldName(b)} has energy entered but no floor area yet, so its kWh/m² can’t be worked out. Assign its floors or enter its area.` }); });
   S.pages.forEach((pg, i) => { const c = pg.calib; if (!pg.removed && c && c.method === 'two') { const pr = calPrecision(c); if (pr > 0.005) w.push({ type: 'calib', sev: 'warn', page: i, ids: [], msg: `Calibration${multi ? ' on ' + lbl(i) : ''} may be imprecise (±${nf(pr * 100, 2)} %). Recalibrate on a longer known dimension, zoomed in.` }); } });
   return w;
 }
@@ -1348,6 +1363,13 @@ function renderBsum() {
     }
     box.innerHTML = h; box.hidden = !h;
   } else box.hidden = true;
+  if (document.querySelector('[data-bkpm]')) { const sp = energySplit();
+    document.querySelectorAll('[data-bkpm]').forEach(el => {
+      const r = sp.rows.find(x => x.b.id === +el.dataset.bkpm); if (!r) { el.textContent = ''; return; }
+      const parts = EK.filter(k => r[k] != null).map(k => `${fuelName(k)} ${sp.shared ? nf(r[k], 0) + ' kWh' : ''}${r.splitArea > 0 ? (sp.shared ? ' (' + perM2(r[k], r.splitArea) + ')' : ' ' + perM2(r[k], r.splitArea)) : ''}`);
+      if (sp.shared) el.textContent = `Share of the site meter: ${nf(r.share * 100, 1)} %${parts.length ? ' · ' + parts.join(' · ') : ''}`;
+      else el.textContent = !parts.length ? '' : r.splitArea > 0 ? parts.join(' · ') : 'Assign this building’s floors (or enter its area) to see kWh/m².';
+    }); }
   document.querySelectorAll('[data-bmeas]').forEach(el => { const b = S.site.buildings.find(x => x.id === +el.dataset.bmeas); if (!b) return; const sm = bldSummary(b); el.textContent = sm.measured ? `Measured here: ${fA(sm.tufa)} m² on ${sm.pages.length} floor${sm.pages.length === 1 ? '' : 's'}` : (S.pages.length ? 'No measured floors assigned yet' : ''); });
   renderSplit();
 }
@@ -1368,7 +1390,10 @@ function renderSite() {
       <span class="note" data-bmeas="${b.id}"></span>
       <div class="fl">Benchmark categories</div><p class="note bnote">Up to four for this building, as named in your DEC software.</p>
       <div class="g2">${[0, 1, 2, 3].map(k => benchSelect(b, k)).join('')}</div>
-      <div class="g2"><label class="fl">Area on previous DEC (m²)<input class="in" data-bf="prev" inputmode="decimal" value="${esc(b.prev)}" placeholder="optional"></label>${one ? '' : `<label class="fl">Area from elsewhere (m²)<input class="in" data-bf="manual" inputmode="decimal" value="${esc(b.manual)}" placeholder="if not measured here"></label>`}</div></div>`;
+      <div class="g2"><label class="fl">Area on previous DEC (m²)<input class="in" data-bf="prev" inputmode="decimal" value="${esc(b.prev)}" placeholder="optional"></label>${one ? '' : `<label class="fl">Area from elsewhere (m²)<input class="in" data-bf="manual" inputmode="decimal" value="${esc(b.manual)}" placeholder="if not measured here"></label>`}</div>
+      <div class="fl">Energy for the assessment period</div>
+      ${sharedMeter() ? '' : `<div class="g3">${EK.map(k => `<label class="fl"><span><span data-oname="${k}">${esc(fuelName(k))}</span> (kWh)</span><input class="in" data-be="${k}" inputmode="decimal" value="${esc(bEnergy(b)[k])}" placeholder="${k === 'other' ? 'optional' : 'kWh'}"></label>`).join('')}</div>`}
+      <p class="note bkpm" data-bkpm="${b.id}"></p></div>`;
   });
   h += `<div class="row"><button class="btn" type="button" id="bAddB">Add building</button></div>`;
   if (!one) h += `<p class="note">Assign each floor to its building under Current floor. For a building measured on another drawing, enter its area under “Area from elsewhere”.</p>`;
@@ -1379,6 +1404,7 @@ function renderSite() {
 }
 $('#siteBox').addEventListener('input', e => {
   const t = e.target, card = t.closest('[data-bid]'), b = card && S.site.buildings.find(x => x.id === +card.dataset.bid); if (!b) return;
+  if (t.dataset.be) { bEnergy(b)[t.dataset.be] = t.value; dirty = true; renderBsum(); renderSumView(); updateNumbers(); return; }
   if (t.dataset.bench != null) { b.bench[+t.dataset.bench] = t.value; dirty = true; renderList(); requestDraw(); renderSumView(); return; }
   if (t.dataset.bf) { b[t.dataset.bf] = t.value; dirty = true; updateNumbers(); if (t.dataset.bf === 'name') { renderFloors(); renderSplit(); const sel = $('#pgBld'); if (sel) [...sel.options].forEach(o => { const bb = S.site.buildings.find(x => x.id === +o.value); if (bb) o.textContent = bldName(bb); }); } }
 });
@@ -1393,25 +1419,36 @@ $('#siteBox').addEventListener('change', e => {
 $('#siteBox').addEventListener('click', e => {
   if (e.target.closest('#bAddB')) { S.site.buildings.push(newBld(S.site.nextB++)); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); toast('Building added. Assign floors to it under Current floor on this tab.'); return; }
   const del = e.target.closest('[data-bdel]'); if (!del) return; const id = +del.dataset.bdel;
-  S.site.buildings = S.site.buildings.filter(b => b.id !== id); S.pages.forEach(pg => { if (pg.bld === id) pg.bld = S.site.buildings[0].id; }); dirty = true; renderSite(); renderDrawInfo(); renderFloors(); updateNumbers(); renderList();
+  S.site.buildings = S.site.buildings.filter(b => b.id !== id); S.pages.forEach(pg => { if (pg.bld === id) pg.bld = S.site.buildings[0].id; });
+  if (S.site.shared && S.site.buildings.length === 1) { const b0 = S.site.buildings[0], be = bEnergy(b0); if (!EK.some(k => numOrNull(be[k]) != null)) EK.forEach(k => { be[k] = S.site.energy[k] || ''; }); S.site.shared = false; }
+  dirty = true; renderSite(); renderDrawInfo(); renderFloors(); updateNumbers(); renderList();
 });
 function renderEnergy() {
-  const one = S.site.buildings.length === 1, e = S.site.energy, ph = one ? 'total for the period' : 'site total';
-  const f = (k, label, p, txt) => `<label class="fl">${label}<input class="in${txt ? ' txt' : ''}" data-en="${k}" ${txt ? '' : 'inputmode="decimal"'} value="${esc(e[k])}" placeholder="${p}"></label>`;
-  $('#energyCap').textContent = one ? 'Energy for the assessment period' : 'Energy split by floor area';
-  $('#energyBox').innerHTML = `<p class="note">${one ? 'Enter the building’s energy use for the assessment period to see it per m² of floor area.' : 'If the buildings share a meter, enter the site totals for the assessment period. Each building gets a share in proportion to its floor area, shown with its use per m².'}</p>
-    <div class="g2">${f('elec', 'Electricity (kWh)', ph, 0)}${f('gas', 'Natural gas (kWh)', ph, 0)}${f('other', 'Other fuel (kWh)', 'optional', 0)}${f('otherName', 'Other fuel type', 'e.g. Fuel oil', 1)}</div>
+  const one = S.site.buildings.length === 1, shared = sharedMeter(), e = S.site.energy;
+  const f = (k, label, p, txt) => `<label class="fl">${label}<input class="in${txt ? ' txt' : ''}" data-en="${k}" ${txt ? '' : 'inputmode="decimal"'} value="${esc(e[k] || '')}" placeholder="${p}"></label>`;
+  $('#energyCap').textContent = one ? 'Energy summary' : shared ? 'Energy split by floor area (shared meter)' : 'Energy by building';
+  let h = `<p class="note">${one ? 'Enter the building’s energy in its card above. Its use per m² appears here and in the reports.' : shared ? 'The site totals below are split between the buildings in proportion to their floor area.' : 'Each building has its own energy figures, entered in its card above.'}</p>`;
+  if (!one) h += `<label class="chk"><input type="checkbox" id="enShared"${shared ? ' checked' : ''}><span>These buildings share one meter: split the site totals by floor area instead</span></label>`;
+  h += `<div class="g2">${shared ? f('elec', 'Site electricity (kWh)', 'site total', 0) + f('gas', 'Site natural gas (kWh)', 'site total', 0) + f('other', 'Site other fuel (kWh)', 'optional', 0) : ''}${f('otherName', 'Other fuel type', 'e.g. Fuel oil', 1)}</div>
     <div class="tblwrap" id="splitTbl"></div>`;
+  $('#energyBox').innerHTML = h;
   renderSplit();
 }
-$('#energyBox').addEventListener('input', e => { const k = e.target.dataset.en; if (!k) return; S.site.energy[k] = e.target.value; dirty = true; renderSplit(); renderSumView(); });
+$('#energyBox').addEventListener('input', e => { const k = e.target.dataset.en; if (!k) return; S.site.energy[k] = e.target.value; dirty = true; if (k === 'otherName') document.querySelectorAll('[data-oname="other"]').forEach(x => { x.textContent = fuelName('other'); }); renderBsum(); renderSumView(); });
+$('#energyBox').addEventListener('change', e => {
+  if (e.target.id !== 'enShared') return;
+  S.site.shared = e.target.checked;
+  if (S.site.shared && !EK.some(k => numOrNull(S.site.energy[k]) != null)) EK.forEach(k => { const v = S.site.buildings.map(b => numOrNull(bEnergy(b)[k])).filter(x => x != null); S.site.energy[k] = v.length ? String(v.reduce((t, x) => t + x, 0)) : ''; });
+  dirty = true; renderSite(); renderSumView(); updateNumbers();
+  toast(S.site.shared ? 'Shared meter: enter the site totals and they are split by floor area.' : 'Each building now uses its own energy figures.');
+});
 function renderSplit() {
   const el = $('#splitTbl'); if (!el) return;
-  const one = S.site.buildings.length === 1, sp = energySplit(), cols = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
+  const one = S.site.buildings.length === 1, sp = energySplit(), cols = EK.map(k => [k, fuelName(k)]).filter(([k]) => sp.E[k] != null), shr = sp.shared;
   if (!cols.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<table class="split"><thead><tr><th>Building</th><th>Floor area</th>${one ? '' : '<th>Share</th>'}${cols.map(c => `<th>${esc(c[1])}</th>`).join('')}</tr></thead>
-    <tbody>${sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' <span class="note">(entered)</span>' : ''}</td><td>${fA(r.splitArea)} m²</td>${one ? '' : `<td>${nf(r.share * 100, 1)} %</td>`}${cols.map(c => `<td>${nf(r[c[0]], 0)} kWh${r.splitArea > 0 ? `<small class="kpm">${perM2(r[c[0]], r.splitArea)}</small>` : ''}</td>`).join('')}</tr>`).join('')}</tbody>
-    ${one ? '' : `<tfoot><tr><td>Site total</td><td>${fA(sp.total)} m²</td><td>${sp.total ? '100 %' : '—'}</td>${cols.map(c => `<td>${nf(sp.E[c[0]], 0)} kWh</td>`).join('')}</tr></tfoot>`}</table>
+  el.innerHTML = `<table class="split"><thead><tr><th>Building</th><th>Floor area</th>${shr ? '<th>Share</th>' : ''}${cols.map(c => `<th>${esc(c[1])}</th>`).join('')}</tr></thead>
+    <tbody>${sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' <span class="note">(entered)</span>' : ''}</td><td>${fA(r.splitArea)} m²</td>${shr ? `<td>${nf(r.share * 100, 1)} %</td>` : ''}${cols.map(c => `<td>${r[c[0]] == null ? '—' : nf(r[c[0]], 0) + ' kWh'}${r.splitArea > 0 ? `<small class="kpm">${perM2(r[c[0]], r.splitArea)}</small>` : ''}</td>`).join('')}</tr>`).join('')}</tbody>
+    ${one ? '' : `<tfoot><tr><td>Site total</td><td>${fA(sp.total)} m²</td>${shr ? `<td>${sp.total ? '100 %' : '—'}</td>` : ''}${cols.map(c => `<td>${nf(sp.E[c[0]], 0)} kWh${sp.total > 0 ? `<small class="kpm">${perM2(sp.E[c[0]], sp.total)}</small>` : ''}</td>`).join('')}</tr></tfoot>`}</table>
     ${sp.total > 0 ? '' : '<p class="note">Trace the floor area (or enter the area) to see energy per m².</p>'}`;
 }
 let curTab = 'measure', scaleOpen = false, scaleClosed = false;
@@ -1458,10 +1495,10 @@ function renderSumView() {
     h += `</div></div>`;
   }
   if (multiB || hasEnergy()) {
-    const sp = energySplit(), ec = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
-    h += `<div class="sv-card"><h3>${multiB ? 'Energy split by floor area<small>site totals × each building’s share of the floor area</small>' : 'Energy for the assessment period<small>energy use per m² of floor area</small>'}</h3><div class="sv-body"><div class="tblwrap"><table class="stbl"><thead><tr><th>Building</th><th class="n">Floor area</th>${multiB ? '<th class="n">Share</th>' : ''}${ec.map(c => `<th class="n">${esc(c[1])}</th>`).join('')}</tr></thead><tbody>`;
-    h += sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' (entered)' : ''}</td><td class="n">${m2(r.splitArea)}</td>${multiB ? `<td class="n">${nf(r.share * 100, 1)} %</td>` : ''}${ec.map(c => `<td class="n">${nf(r[c[0]], 0)} kWh${r.splitArea > 0 ? `<small class="kpm">${perM2(r[c[0]], r.splitArea)}</small>` : ''}</td>`).join('')}</tr>`).join('');
-    if (multiB) h += `<tr class="tufa"><td>Site total</td><td class="n">${m2(sp.total)}</td><td class="n">${sp.total ? '100 %' : '—'}</td>${ec.map(c => `<td class="n">${nf(sp.E[c[0]], 0)} kWh</td>`).join('')}</tr>`;
+    const sp = energySplit(), shr = sp.shared, ec = EK.map(k => [k, fuelName(k)]).filter(([k]) => sp.E[k] != null);
+    h += `<div class="sv-card"><h3>${shr ? 'Energy split by floor area<small>shared meter: site totals × each building’s share of the floor area</small>' : multiB ? 'Energy by building<small>each building’s own energy and use per m²</small>' : 'Energy for the assessment period<small>energy use per m² of floor area</small>'}</h3><div class="sv-body"><div class="tblwrap"><table class="stbl"><thead><tr><th>Building</th><th class="n">Floor area</th>${shr ? '<th class="n">Share</th>' : ''}${ec.map(c => `<th class="n">${esc(c[1])}</th>`).join('')}</tr></thead><tbody>`;
+    h += sp.rows.map(r => `<tr><td>${esc(bldName(r.b))}${r.measured ? '' : r.manual ? ' (entered)' : ''}</td><td class="n">${m2(r.splitArea)}</td>${shr ? `<td class="n">${nf(r.share * 100, 1)} %</td>` : ''}${ec.map(c => `<td class="n">${r[c[0]] == null ? '—' : nf(r[c[0]], 0) + ' kWh'}${r.splitArea > 0 ? `<small class="kpm">${perM2(r[c[0]], r.splitArea)}</small>` : ''}</td>`).join('')}</tr>`).join('');
+    if (multiB) h += `<tr class="tufa"><td>Site total</td><td class="n">${m2(sp.total)}</td>${shr ? `<td class="n">${sp.total ? '100 %' : '—'}</td>` : ''}${ec.map(c => `<td class="n">${nf(sp.E[c[0]], 0)} kWh${sp.total > 0 ? `<small class="kpm">${perM2(sp.E[c[0]], sp.total)}</small>` : ''}</td>`).join('')}</tr>`;
     h += `</tbody></table></div>${ec.length ? '' : '<p class="sv-empty">Enter the energy for the assessment period on the Site &amp; floors tab to see it here.</p>'}</div></div>`;
   }
   const w = warnings();
@@ -1707,7 +1744,9 @@ async function loadProject(f) {
   try { await commitDrawing({ name: o.file.name, type: o.file.type, mime: o.file.mime, buf: b64ToBuf(o.file.data) }); }
   catch (e) { toast('Could not open the drawing stored in this project: ' + (e.message || e)); return; }
   (o.pages || []).forEach((p, i) => { if (S.pages[i]) { S.pages[i].calib = p.calib || null; S.pages[i].ang = p.ang != null ? p.ang : (p.rot || 0) * 90; if ('label' in p) S.pages[i].label = p.label || null; if (p.bld) S.pages[i].bld = p.bld; if (p.removed) S.pages[i].removed = true; } });
-  S.site = Object.assign(defSite(), o.site || {}); if (!Array.isArray(S.site.buildings) || !S.site.buildings.length) S.site.buildings = defSite().buildings; const oldBench = (o.site && Array.isArray(o.site.bench)) ? o.site.bench : []; S.site.buildings = S.site.buildings.map(b => Object.assign(newBld(b.id), b, { bench: Array.isArray(b.bench) ? [0, 1, 2, 3].map(i => b.bench[i] || '') : [0, 1, 2, 3].map(i => oldBench[i] || ''), benchOther: Array.isArray(b.benchOther) ? b.benchOther : [false, false, false, false] })); delete S.site.bench; S.site.energy = Object.assign(defSite().energy, S.site.energy || {}); S.site.nextB = Math.max(S.site.nextB || 2, ...S.site.buildings.map(b => b.id + 1));
+  S.site = Object.assign(defSite(), o.site || {}); if (!Array.isArray(S.site.buildings) || !S.site.buildings.length) S.site.buildings = defSite().buildings; const oldBench = (o.site && Array.isArray(o.site.bench)) ? o.site.bench : []; S.site.buildings = S.site.buildings.map(b => Object.assign(newBld(b.id), b, { bench: Array.isArray(b.bench) ? [0, 1, 2, 3].map(i => b.bench[i] || '') : [0, 1, 2, 3].map(i => oldBench[i] || ''), benchOther: Array.isArray(b.benchOther) ? b.benchOther : [false, false, false, false] })); delete S.site.bench;
+  S.site.buildings.forEach(b => { b.energy = Object.assign({ elec: '', gas: '', other: '' }, b.energy || {}); });
+  if (!(o.site && 'shared' in o.site) && EK.some(k => numOrNull(S.site.energy[k]) != null)) { if (S.site.buildings.length > 1) S.site.shared = true; else { const be = bEnergy(S.site.buildings[0]); EK.forEach(k => { be[k] = S.site.energy[k] || ''; S.site.energy[k] = ''; }); S.site.shared = false; } } S.site.energy = Object.assign(defSite().energy, S.site.energy || {}); S.site.nextB = Math.max(S.site.nextB || 2, ...S.site.buildings.map(b => b.id + 1));
   S.sign = Object.assign({ date: '', sig: null, confirm: false }, o.sign || {});
   S.polys = (o.polys || []).filter(p => Array.isArray(p.pts) && p.pts.length >= 3 && p.page < S.pages.length);
   S.nextId = o.nextId || (Math.max(0, ...S.polys.map(p => p.id)) + 1); S.meta = Object.assign({ building: '', ref: '', assessor: '' }, o.meta || {}); S.lenUnit = o.lenUnit === 'mm' ? 'mm' : 'm';
@@ -1800,14 +1839,14 @@ async function exportDocx() {
       }
     }
     if (multiB || hasEnergy()) {
-      const sp = energySplit(), ec = [['elec', 'Electricity'], ['gas', 'Natural gas'], ['other', S.site.energy.otherName || 'Other fuel']].filter(([k]) => sp.E[k] != null);
-      kids.push(H(multiB ? 'Energy split by floor area' : 'Energy for the assessment period'));
-      kids.push(note(multiB ? 'Site totals apportioned to each building in proportion to its floor area, with each building’s energy use per m².' : 'Energy use for the assessment period and per m² of floor area.'));
-      const fixed = multiB ? [2600, 1500, 1100] : [3200, 1700], wcol = Math.floor((W - fixed.reduce((a2, b2) => a2 + b2, 0)) / Math.max(1, ec.length));
-      const kcell = (v, a2) => ({ t: `${nf(v, 0)} kWh${a2 > 0 ? '  (' + perM2(v, a2) + ')' : ''}`, right: true });
-      kids.push(table([{ t: 'Building' }, { t: 'Floor area', r: true }].concat(multiB ? [{ t: 'Share', r: true }] : []).concat(ec.map(c => ({ t: c[1], r: true }))),
-        sp.rows.map(r => [{ t: bldName(r.b) + (r.measured ? '' : r.manual ? ' (entered)' : '') }, { t: m2(r.splitArea), right: true }].concat(multiB ? [{ t: nf(r.share * 100, 1) + ' %', right: true }] : []).concat(ec.map(c => kcell(r[c[0]], r.splitArea))))
-          .concat(multiB ? [[{ t: 'Site total', bold: true, color: TEAL, fill: SOFT }, { t: m2(sp.total), right: true, bold: true, color: TEAL, fill: SOFT }, { t: sp.total ? '100 %' : '-', right: true, bold: true, color: TEAL, fill: SOFT }].concat(ec.map(c => ({ t: nf(sp.E[c[0]], 0) + ' kWh', right: true, bold: true, color: TEAL, fill: SOFT })))] : []),
+      const sp = energySplit(), shr = sp.shared, ec = EK.map(k => [k, fuelName(k)]).filter(([k]) => sp.E[k] != null);
+      kids.push(H(shr ? 'Energy split by floor area' : multiB ? 'Energy by building' : 'Energy for the assessment period'));
+      kids.push(note(shr ? 'The buildings share one meter: site totals apportioned to each building in proportion to its floor area, with each building’s energy use per m².' : multiB ? 'Energy use for the assessment period for each building, and per m² of its floor area.' : 'Energy use for the assessment period and per m² of floor area.'));
+      const fixed = shr ? [2600, 1500, 1100] : [3200, 1700], wcol = Math.floor((W - fixed.reduce((a2, b2) => a2 + b2, 0)) / Math.max(1, ec.length));
+      const kcell = (v, a2) => ({ t: v == null ? '-' : `${nf(v, 0)} kWh${a2 > 0 ? '  (' + perM2(v, a2) + ')' : ''}`, right: true });
+      kids.push(table([{ t: 'Building' }, { t: 'Floor area', r: true }].concat(shr ? [{ t: 'Share', r: true }] : []).concat(ec.map(c => ({ t: c[1], r: true }))),
+        sp.rows.map(r => [{ t: bldName(r.b) + (r.measured ? '' : r.manual ? ' (entered)' : '') }, { t: m2(r.splitArea), right: true }].concat(shr ? [{ t: nf(r.share * 100, 1) + ' %', right: true }] : []).concat(ec.map(c => kcell(r[c[0]], r.splitArea))))
+          .concat(multiB ? [[{ t: 'Site total', bold: true, color: TEAL, fill: SOFT }, { t: m2(sp.total), right: true, bold: true, color: TEAL, fill: SOFT }].concat(shr ? [{ t: sp.total ? '100 %' : '-', right: true, bold: true, color: TEAL, fill: SOFT }] : []).concat(ec.map(c => Object.assign(kcell(sp.E[c[0]], sp.total), { bold: true, color: TEAL, fill: SOFT })))] : []),
         fixed.concat(ec.map(() => wcol))));
     }
     // every traced area
@@ -1941,14 +1980,14 @@ async function exportPdf() {
     }
     // energy
     if (S.site.buildings.length > 1 || hasEnergy()) {
-      const multiB = S.site.buildings.length > 1, sp = energySplit(), ec = [['elec', 'Electricity kWh'], ['gas', 'Gas kWh'], ['other', (S.site.energy.otherName || 'Other') + ' kWh']].filter(([k]) => sp.E[k] != null);
-      sub(multiB ? 'Energy split by floor area' : 'Energy for the assessment period'); doc.setTextColor(...mut); ensure(5); doc.text(sa(multiB ? 'Site totals apportioned to each building in proportion to its floor area. Figures in brackets are energy use per m2.' : 'Energy use for the assessment period. Figures in brackets are energy use per m2.'), 10, y); y += 5;
-      const xs = multiB ? [10, 120, 145, 185, 225, 265] : [10, 120, 160, 200, 240];
+      const multiB = S.site.buildings.length > 1, sp = energySplit(), shr = sp.shared, ec = EK.map(k => [k, fuelName(k) + ' kWh']).filter(([k]) => sp.E[k] != null);
+      sub(shr ? 'Energy split by floor area' : multiB ? 'Energy by building' : 'Energy for the assessment period'); doc.setTextColor(...mut); ensure(5); doc.text(sa(shr ? 'The buildings share one meter: site totals apportioned by floor area. Figures in brackets are energy use per m2.' : 'Energy use for the assessment period. Figures in brackets are energy use per m2.'), 10, y); y += 5;
+      const xs = shr ? [10, 120, 145, 185, 225, 265] : [10, 120, 160, 200, 240];
       const row = (vals, bold, col) => { ensure(5); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...col); vals.forEach((v, i) => doc.text(sa(v), i ? xs[i] + 20 : xs[0], y, { align: i ? 'right' : 'left' })); y += 4.8; };
-      const pm = (v, a2) => a2 > 0 && v != null ? ` (${nf(v / a2, 1)}/m2)` : '';
-      row(['Building', 'Area m²'].concat(multiB ? ['Share'] : []).concat(ec.map(c => c[1])), true, ink);
-      sp.rows.forEach(r => row([bldName(r.b), fA(r.splitArea)].concat(multiB ? [nf(r.share * 100, 1) + ' %'] : []).concat(ec.map(c => nf(r[c[0]], 0) + pm(r[c[0]], r.splitArea))), false, ink));
-      if (multiB) row(['Site total', fA(sp.total), sp.total ? '100 %' : '-'].concat(ec.map(c => nf(sp.E[c[0]], 0))), true, teal);
+      const pm = (v, a2) => a2 > 0 && v != null ? ` (${nf(v / a2, 1)}/m2)` : '', kv = v => v == null ? '-' : nf(v, 0);
+      row(['Building', 'Area m²'].concat(shr ? ['Share'] : []).concat(ec.map(c => c[1])), true, ink);
+      sp.rows.forEach(r => row([bldName(r.b), fA(r.splitArea)].concat(shr ? [nf(r.share * 100, 1) + ' %'] : []).concat(ec.map(c => kv(r[c[0]]) + (r[c[0]] == null ? '' : pm(r[c[0]], r.splitArea)))), false, ink));
+      if (multiB) row(['Site total', fA(sp.total)].concat(shr ? [sp.total ? '100 %' : '-'] : []).concat(ec.map(c => kv(sp.E[c[0]]) + pm(sp.E[c[0]], sp.total))), true, teal);
       doc.setFont('helvetica', 'normal');
     }
     y += 3; if (y > 182) contPage();

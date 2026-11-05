@@ -731,6 +731,7 @@ async function commitDrawing(f) {
 }
 
 async function showPage(i, keepView) {
+  acquired = [];
   scaleClosed = false;
   if (sumOpen) setSumView(false);
   cur = i; sel = null; selV = -1; draft = null; calibPts = []; measurePts = []; detail = null; detailSeq++; base = null;
@@ -884,7 +885,20 @@ function drawLive() {
     const bd = measurePts[1] || (hoverPlace && hoverPlace.pt);
     if (b2 && bd) { const L = Math.hypot(bd[0] - measurePts[0][0], bd[1] - measurePts[0][1]); pill(g, (sc[0][0] + b2[0]) / 2, (sc[0][1] + b2[1]) / 2 - 14, mpu ? fL(L * mpu) : `${nf(L, 1)} ${unitName()} (no scale)`, COL.meas, 1); }
   }
-  if (hoverPlace && hoverPlace.snapped && (tool !== 'select' || (ptr && ptr.mode === 'vertex'))) {
+  const showSnap = hoverPlace && hoverPlace.snapped && (tool !== 'select' || (ptr && ptr.mode === 'vertex'));
+  if (snapOn && (tool !== 'select' || (ptr && ptr.mode === 'vertex')) && acquired.length) { g.save(); g.strokeStyle = 'rgba(217,119,6,.75)'; g.lineWidth = 1.2; for (const a of acquired) { const q = mapS(a[0], a[1]); g.beginPath(); g.moveTo(q[0] - 4, q[1]); g.lineTo(q[0] + 4, q[1]); g.moveTo(q[0], q[1] - 4); g.lineTo(q[0], q[1] + 4); g.stroke(); } g.restore(); }
+  if (showSnap && hoverPlace.guides) {
+    const q = mapS(...hoverPlace.pt); g.save(); g.strokeStyle = '#D97706'; g.lineWidth = 1.3; g.setLineDash([5, 4]);
+    for (const src of hoverPlace.guides) { const a = mapS(src[0], src[1]), dx = q[0] - a[0], dy = q[1] - a[1], L = Math.hypot(dx, dy) || 1, ext = 40; g.beginPath(); g.moveTo(a[0] - dx / L * 12, a[1] - dy / L * 12); g.lineTo(q[0] + dx / L * ext, q[1] + dy / L * ext); g.stroke(); }
+    g.setLineDash([]); for (const src of hoverPlace.guides) { const a = mapS(src[0], src[1]); g.beginPath(); g.arc(a[0], a[1], 4, 0, Math.PI * 2); g.stroke(); }
+    g.restore();
+  }
+  if (showSnap && /^track/.test(hoverPlace.kind)) {
+    const q = mapS(...hoverPlace.pt), two = hoverPlace.kind === 'track2'; g.save(); g.strokeStyle = '#D97706'; g.lineWidth = 1.8;
+    g.beginPath(); g.moveTo(q[0] - 7, q[1]); g.lineTo(q[0] + 7, q[1]); g.moveTo(q[0], q[1] - 7); g.lineTo(q[0], q[1] + 7); g.stroke(); if (two) { g.beginPath(); g.arc(q[0], q[1], 9, 0, Math.PI * 2); g.stroke(); }
+    g.restore(); pill(g, q[0] + 18 + 44, q[1] + 18, two ? 'X–Y alignment' : hoverPlace.kind === 'track1x' ? 'Aligned on line' : 'Aligned', '#D97706', 1);
+  }
+  else if (showSnap) {
     const q = mapS(...hoverPlace.pt), k = hoverPlace.kind || 'corner'; g.save(); g.lineWidth = 1.8;
     if (k === 'int' || k === 'online') { g.strokeStyle = '#C026D3'; g.beginPath(); g.moveTo(q[0] - 7, q[1] - 7); g.lineTo(q[0] + 7, q[1] + 7); g.moveTo(q[0] + 7, q[1] - 7); g.lineTo(q[0] - 7, q[1] + 7); g.stroke(); g.beginPath(); g.arc(q[0], q[1], 10, 0, Math.PI * 2); g.stroke(); }
     else if (k === 'end') { g.strokeStyle = '#0369A1'; g.strokeRect(q[0] - 6, q[1] - 6, 12, 12); }
@@ -1057,17 +1071,64 @@ function setOrtho(on) {
   toast(orthoOn ? 'X/Y lock on: lines stay horizontal or vertical. Hold Shift for a free angle.' : 'X/Y lock off: draw lines at any angle. Hold Shift to keep a line straight.');
 }
 let lastPtrEv = null;
+/* ---------- alignment guides (tracking) ----------
+   Like DesignBuilder's dotted lines: when the cursor lines up horizontally or vertically with a
+   traced corner, a point of the shape being drawn, or a drawing point the cursor has passed over,
+   a dotted guide appears and the point is held on it. Where a vertical guide from one point
+   meets a horizontal guide from another, the point snaps to that X–Y crossing. */
+const TRK = 8;                                   // guide tolerance in screen pixels
+let acquired = [];                               // drawing intersections / line ends the cursor has passed over
+function acquire(pt) { if (!pt || acquired.some(q => Math.abs(q[0] - pt[0]) < 1e-6 && Math.abs(q[1] - pt[1]) < 1e-6)) return; acquired.push([pt[0], pt[1]]); if (acquired.length > 8) acquired.shift(); }
+function trackPts(skip) {
+  const out = [];
+  for (const p of S.polys) if (p.page === cur) p.pts.forEach((q, i) => { if (!(skip && skip.id === p.id && skip.i === i)) out.push(q); });
+  if (draft) draft.pts.forEach(q => out.push(q));
+  acquired.forEach(q => out.push(q));
+  return out;
+}
+function findTrack(s, skip, exclude) {
+  let v = null, vd = TRK, h = null, hd = TRK;
+  for (const q of trackPts(skip)) {
+    if (exclude && Math.abs(q[0] - exclude[0]) < 1e-9 && Math.abs(q[1] - exclude[1]) < 1e-9) continue;
+    const p = toS(q[0], q[1]), dx = Math.abs(p.x - s.x), dy = Math.abs(p.y - s.y);
+    if (dx < vd && dy > 4) { vd = dx; v = { src: q, x: p.x }; }
+    if (dy < hd && dx > 4) { hd = dy; h = { src: q, y: p.y }; }
+  }
+  return { v, h };
+}
+function alignExact(pt, src, screenAxis) {      // make the aligned coordinate exactly equal to the source's
+  if (V.a % 90 !== 0) return pt;
+  const sameX = Math.round(V.a / 90) % 2 === 0, k = screenAxis === 'x' ? (sameX ? 0 : 1) : (sameX ? 1 : 0);
+  pt[k] = src[k]; return pt;
+}
 function placePoint(s, shift, ref, skip) {
   if (shift && ref) {
     const r = toS(ref[0], ref[1]), q = { x: s.x, y: s.y };
     const horiz = Math.abs(q.x - r.x) > Math.abs(q.y - r.y); if (horiz) q.y = r.y; else q.x = r.x;
-    let aligned = false; if (draft && draft.pts.length >= 2) { const f = toS(draft.pts[0][0], draft.pts[0][1]); if (horiz && Math.abs(q.x - f.x) < 10) { q.x = f.x; aligned = true; } if (!horiz && Math.abs(q.y - f.y) < 10) { q.y = f.y; aligned = true; } }   // line up with the start point so the shape closes square
+    let aligned = false, guide = null;
+    if (draft && draft.pts.length >= 2) { const f = toS(draft.pts[0][0], draft.pts[0][1]); if (horiz && Math.abs(q.x - f.x) < 10) { q.x = f.x; aligned = true; guide = draft.pts[0]; } if (!horiz && Math.abs(q.y - f.y) < 10) { q.y = f.y; aligned = true; guide = draft.pts[0]; } }   // line up with the start point so the shape closes square
+    if (!aligned && snapOn) { const t = findTrack(q, skip, ref); if (horiz && t.v) { q.x = t.v.x; aligned = true; guide = t.v.src; } else if (!horiz && t.h) { q.y = t.h.y; aligned = true; guide = t.h.src; } }
     const o0 = toD(0, 0), o1 = toD(horiz ? 1 : 0, horiz ? 0 : 1), dir = [o1[0] - o0[0], o1[1] - o0[1]];
     const sn = snapQuery(q, skip, { p: ref, dir, cornersOnly: aligned }); if (sn) return { pt: sn.pt, snapped: true, kind: sn.kind, locked: true };
     const d = toD(q.x, q.y); if (V.a % 90 === 0) { if (Math.abs(d[0] - ref[0]) < Math.abs(d[1] - ref[1])) d[0] = ref[0]; else d[1] = ref[1]; }
+    if (guide) { alignExact(d, guide, horiz ? 'x' : 'y'); return { pt: d, snapped: true, kind: 'track1', guides: [guide], locked: true }; }
     return { pt: d, snapped: false, locked: true };
   }
-  const sn = snapQuery(s, skip); if (sn) return { pt: sn.pt, snapped: true, kind: sn.kind };
+  const sn = snapQuery(s, skip);
+  if (sn && sn.kind === 'corner') return { pt: sn.pt, snapped: true, kind: sn.kind };
+  if (snapOn) {
+    const t = findTrack(s, skip, null);
+    if (t.v && t.h) { const d = toD(t.v.x, t.h.y); alignExact(d, t.v.src, 'x'); alignExact(d, t.h.src, 'y'); return { pt: d, snapped: true, kind: 'track2', guides: [t.v.src, t.h.src] }; }
+    if (sn) return { pt: sn.pt, snapped: true, kind: sn.kind };
+    if (t.v || t.h) {
+      const src = (t.v || t.h).src, q = { x: t.v ? t.v.x : s.x, y: t.h ? t.h.y : s.y };
+      const o0 = toD(0, 0), o1 = toD(t.v ? 0 : 1, t.v ? 1 : 0), dir = [o1[0] - o0[0], o1[1] - o0[1]];
+      const on = snapQuery(q, skip, { p: src, dir });   // where the guide crosses a drawing line
+      const d = on && on.kind === 'online' ? on.pt : alignExact(toD(q.x, q.y), src, t.v ? 'x' : 'y');
+      return { pt: d, snapped: true, kind: on && on.kind === 'online' ? 'track1x' : 'track1', guides: [src] };
+    }
+  }
+  if (sn) return { pt: sn.pt, snapped: true, kind: sn.kind };
   return { pt: toD(s.x, s.y), snapped: false };
 }
 function refPoint() { if (draft && draft.pts.length) return draft.pts[draft.pts.length - 1]; if (tool === 'calib' && calibPts.length === 1) return calibPts[0].pt; if (tool === 'measure' && measurePts.length === 1) return measurePts[0]; return null; }
@@ -1120,6 +1181,7 @@ cv.addEventListener('pointermove', e => {
   } else {
     lastPtrEv = { shiftKey: e.shiftKey };
     hoverPlace = (tool === 'select') ? null : placePoint(p, wantOrtho(e), refPoint());
+    if (hoverPlace && hoverPlace.snapped && (hoverPlace.kind === 'int' || hoverPlace.kind === 'end')) acquire(hoverPlace.pt);
     if (tool === 'select') cv.style.cursor = hitHandles(p) ? 'move' : (hitPoly(p) ? 'pointer' : 'grab');
     requestDraw();
   }
@@ -1174,7 +1236,7 @@ function finishDraft() {
   const a = areaM(poly);
   toast(a == null ? `${poly.name} traced. Set the scale to calculate its area.` : `${poly.name}: ${fA(a)} m²${selfX(poly.pts) ? ' — outline crosses itself, check it' : ''}`);
 }
-function cancelOp() { if (draft) { draft = null; } else if (calibPts.length) { calibPts = []; renderScale(); } else if (measurePts.length) { measurePts = []; } else if (sel != null) { sel = null; selV = -1; renderList(); } requestDraw(); }
+function cancelOp() { if (!draft && !calibPts.length && !measurePts.length && acquired.length) { acquired = []; requestDraw(); return; } if (draft) { draft = null; } else if (calibPts.length) { calibPts = []; renderScale(); } else if (measurePts.length) { measurePts = []; } else if (sel != null) { sel = null; selV = -1; renderList(); } requestDraw(); }
 function deleteSel() {
   if (draft) { draft.pts.pop(); if (!draft.pts.length) draft = null; requestDraw(); return; }
   const p = S.polys.find(q => q.id === sel); if (!p) return;
@@ -1184,7 +1246,7 @@ function deleteSel() {
 function setCursor() { cv.style.cursor = spaceDown ? 'grab' : (tool === 'select' ? 'default' : 'crosshair'); }
 const HINTS = {
   select: 'Click an area to select it · drag square handles to move points · drag a round midpoint to add a point · Alt-click or right-click a point to remove it · drag empty space to pan · scroll to zoom',
-  poly: 'Click to add points · X/Y lock (O) keeps edges horizontal or vertical; hold Shift to switch it for one point · Snap (N) jumps to corners, line intersections and line ends · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
+  poly: 'Click to add points · X/Y lock (O) keeps edges horizontal or vertical; hold Shift to switch it for one point · Snap (N) jumps to corners, line intersections and line ends, and dotted guides show where the point lines up with other corners · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
   unc: 'Trace plant rooms, bin stores and other unconditioned spaces · they are listed separately and not added to or subtracted from the total · finish by clicking the first point, double-clicking or pressing Enter',
   bnd: 'Trace the outer building boundary · it is not counted in the totals; areas that spill outside it are flagged · finish by clicking the first point, double-clicking or pressing Enter',
   excl: 'Trace a courtyard, void or other area to subtract · finish by clicking the first point, double-clicking or pressing Enter · Esc cancels',

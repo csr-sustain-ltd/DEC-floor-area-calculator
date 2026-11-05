@@ -168,7 +168,7 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .tb button{padding:0 10px}
 @media (max-width:2100px){.tb button{padding:0 7px;gap:5px}.tb .lbl-opt{display:none}.grp{padding:0 4px}}
 @media (max-width:1500px){.tb button{padding:0 4px;gap:4px}.grp{padding:0 2px}.zoomv{min-width:44px}}
-@media (max-width:1320px){#bOrtho .lbl,#bSnap .lbl{display:none}}
+@media (max-width:1320px){#bOrtho .lbl{display:none}}
 .opts{grid-column:2/4;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:6px}
 select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .item.unc .sw{background:rgba(109,40,217,.15);outline:1.5px dotted #6D28D9}
@@ -366,7 +366,6 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
       <button data-tool="unc" class="t-unc" title="Trace an unconditioned area such as plant or a bin store (U). Recorded separately, not added or subtracted."><svg class="i"><use href="#i-unc"/></svg><span class="lbl">Unconditioned</span> <kbd>U</kbd></button>
       <button data-tool="bnd" class="t-bnd" title="Trace the building boundary used to check other areas (B). Not counted in totals."><svg class="i"><use href="#i-bnd"/></svg><span class="lbl lbl-opt">Boundary</span> <kbd>B</kbd></button>
       <button id="bOrtho" class="t-ortho" aria-pressed="true" title="X/Y lock (O): lines stay horizontal or vertical. Turn off to draw at any angle. Hold Shift to switch it for a single point."><svg class="i"><use href="#i-ortho"/></svg><span class="lbl">X/Y</span></button>
-      <button id="bSnap" class="t-ortho" aria-pressed="true" title="Snap (N): points jump to corners you have traced, to where lines cross and to line ends on PDF drawings. Turn off to place points freely."><svg class="i"><use href="#i-snap"/></svg><span class="lbl">Snap</span></button>
       <button data-tool="calib" class="t-cal" title="Two-point scale calibration (C)"><svg class="i"><use href="#i-calib"/></svg><span class="lbl lbl-opt">Calibrate</span> <kbd>C</kbd></button>
       <button data-tool="measure" title="Check a dimension (M)"><svg class="i"><use href="#i-measure"/></svg><span class="lbl lbl-opt">Check dim.</span> <kbd>M</kbd></button>
     </div>
@@ -988,8 +987,7 @@ function findSnapOld(s, skip) {
 }
 /* ---------- snapping: traced corners, line intersections and line ends ---------- */
 const SNAP_R = 10;                      // snap radius in screen pixels
-let snapOn = true;
-try { if (localStorage.getItem('decAreaSnap') === '0') snapOn = false; } catch (e) {}
+const snapOn = true;   // snapping and alignment guides are always on
 const GCELL = 12, gkey = (gx, gy) => gx * 100003 + gy;
 let geoCache = {};
 function geoFor(i) { const g = geoCache[i]; return g && !g.pending ? g : null; }
@@ -1067,13 +1065,6 @@ function snapQuery(s, skip, line) {
   if (g) { const x0 = Math.floor((d[0] - rD) / GCELL), x1 = Math.floor((d[0] + rD) / GCELL), y0 = Math.floor((d[1] - rD) / GCELL), y1 = Math.floor((d[1] + rD) / GCELL);
     for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) { const a = g.endGrid.get(gkey(gx, gy)); if (a) for (const id of a) consider([g.ends[id * 2], g.ends[id * 2 + 1]], 'end', 0); } }
   return best;
-}
-function setSnap(on) {
-  snapOn = !!on; try { localStorage.setItem('decAreaSnap', snapOn ? '1' : '0'); } catch (e) {}
-  $('#bSnap').setAttribute('aria-pressed', String(snapOn));
-  if (hover && tool !== 'select') hoverPlace = placePoint(hover, wantOrtho(lastPtrEv), refPoint());
-  requestDraw();
-  toast(snapOn ? (S.file && S.file.type !== 'pdf' ? 'Snap on: points jump to your traced corners and to where traced lines cross. Image files have no line data, so drawing intersections need a PDF.' : 'Snap on: points jump to corners, line intersections and line ends.') : 'Snap off: points go exactly where you click.');
 }
 let orthoOn = true;
 try { const v = localStorage.getItem('decAreaOrtho'); if (v === '0') orthoOn = false; } catch (e) {}
@@ -1261,7 +1252,7 @@ function deleteSel() {
 function setCursor() { cv.style.cursor = spaceDown ? 'grab' : (tool === 'select' ? 'default' : 'crosshair'); }
 const HINTS = {
   select: 'Click an area to select it · drag square handles to move points · drag a round midpoint to add a point · Alt-click or right-click a point to remove it · drag empty space to pan · scroll to zoom',
-  poly: 'Click to add points · X/Y lock (O) keeps edges horizontal or vertical; hold Shift to switch it for one point · Snap (N) jumps to corners, line intersections and line ends, and dotted guides show where the point lines up with other corners · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
+  poly: 'Click to add points · X/Y lock (O) keeps edges horizontal or vertical; hold Shift to switch it for one point · points snap to corners, line intersections and line ends, and dotted guides show where the point lines up with other corners · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
   unc: 'Trace plant rooms, bin stores and other unconditioned spaces · they are listed separately and not added to or subtracted from the total · finish by clicking the first point, double-clicking or pressing Enter',
   bnd: 'Trace the outer building boundary · it is not counted in the totals; areas that spill outside it are flagged · finish by clicking the first point, double-clicking or pressing Enter',
   excl: 'Trace a courtyard, void or other area to subtract · finish by clicking the first point, double-clicking or pressing Enter · Esc cancels',
@@ -1300,7 +1291,6 @@ window.addEventListener('keydown', e => {
     case 'f': case 'F': fit(); break;
     case 'r': case 'R': rotate(e.shiftKey ? -1 : 1); break;
     case 'o': case 'O': case 'F8': e.preventDefault(); setOrtho(!orthoOn); break;
-    case 'n': case 'N': case 'F3': e.preventDefault(); setSnap(!snapOn); break;
     case '+': case '=': zoomAt(1.25, W / 2, H / 2); break;
     case '-': case '_': zoomAt(0.8, W / 2, H / 2); break;
     case 'Enter': if (draft) finishDraft(); else if (calibPts.length === 2) applyTwoPoint(); break;
@@ -1314,8 +1304,6 @@ window.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; 
 function shiftPreview(down) { lastPtrEv = { shiftKey: down }; if (hover && tool !== 'select' && !ptr) { hoverPlace = placePoint(hover, wantOrtho(lastPtrEv), refPoint()); updateHud(); requestDraw(); } }
 window.addEventListener('keydown', e => { if (e.key === 'Shift' && !e.repeat) shiftPreview(true); });
 $('#bOrtho').addEventListener('click', () => setOrtho(!orthoOn));
-$('#bSnap').addEventListener('click', () => setSnap(!snapOn));
-$('#bSnap').setAttribute('aria-pressed', String(snapOn));
 
 /* ---------- sidebar ---------- */
 function refresh() { renderList(); renderScale(); renderDrawInfo(); updateNumbers(); updUndo(); requestDraw(); }

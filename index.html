@@ -166,14 +166,16 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .mini.act{background:var(--primary-color);border-color:var(--primary-color);color:var(--white)}
 .tb kbd{display:none}
 .tb button{padding:0 10px}
-@media (max-width:1760px){.tb button{padding:0 8px;gap:5px}.tb .lbl-opt{display:none}.grp{padding:0 5px}}
-@media (max-width:1400px){.tb button{padding:0 5px}.grp{padding:0 2px}}
+@media (max-width:2100px){.tb button{padding:0 7px;gap:5px}.tb .lbl-opt{display:none}.grp{padding:0 4px}}
+@media (max-width:1400px){.tb button{padding:0 4px;gap:4px}.grp{padding:0 2px}.zoomv{min-width:44px}}
 .opts{grid-column:2/4;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:6px}
 select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .item.unc .sw{background:rgba(109,40,217,.15);outline:1.5px dotted #6D28D9}
 .item.unc .ar{color:#6D28D9}
 .item.unc.sel{border-color:#6D28D9;background:#F5F3FF}
 .mini.kind-unc{color:#6D28D9;border-color:#C4B5FD}
+.tb button.t-ortho{border-bottom-color:transparent}
+.tb button.t-ortho[aria-pressed="true"]{color:var(--primary-color);background:var(--primary-soft);border-bottom-color:var(--primary-color)}
 .tb button.t-unc[aria-pressed="true"]{color:#6D28D9;border-bottom-color:#6D28D9}
 .bsum{display:grid;gap:4px;padding-top:10px;border-top:1px solid var(--border-color)}
 .bsum h4{margin:6px 0 2px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
@@ -327,6 +329,7 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
   <symbol id="i-bnd" viewBox="0 0 24 24"><path d="M4 4h4 M11 4h3 M17 4h3v3 M20 10v4 M20 17v3h-3 M14 20h-3 M8 20H4v-3 M4 14v-4 M4 7V4"/></symbol>
   <symbol id="i-unc" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15z"/><circle cx="12" cy="12" r="4"/><path d="M12 8v8 M8 12h8"/></symbol>
   <symbol id="i-table" viewBox="0 0 24 24"><path d="M4 5h16v14H4z M4 10h16 M4 14.5h16 M10 10v9"/></symbol>
+  <symbol id="i-ortho" viewBox="0 0 24 24"><path d="M5 19V5 M5 19h14 M5 5l-2 2.5 M5 5l2 2.5 M19 19l-2.5-2 M19 19l-2.5 2"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
   <symbol id="i-swap" viewBox="0 0 24 24"><path d="M5 8.5h13l-3.5-3.5 M19 15.5H6l3.5 3.5"/></symbol>
 </svg>
 
@@ -357,6 +360,7 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
       <button data-tool="excl" class="t-exc" title="Trace an exclusion such as a courtyard or void (X)"><svg class="i"><use href="#i-excl"/></svg><span class="lbl">Exclusion</span> <kbd>X</kbd></button>
       <button data-tool="unc" class="t-unc" title="Trace an unconditioned area such as plant or a bin store (U). Recorded separately, not added or subtracted."><svg class="i"><use href="#i-unc"/></svg><span class="lbl">Unconditioned</span> <kbd>U</kbd></button>
       <button data-tool="bnd" class="t-bnd" title="Trace the building boundary used to check other areas (B). Not counted in totals."><svg class="i"><use href="#i-bnd"/></svg><span class="lbl lbl-opt">Boundary</span> <kbd>B</kbd></button>
+      <button id="bOrtho" class="t-ortho" aria-pressed="true" title="X/Y lock (O): lines stay horizontal or vertical. Turn off to draw at any angle. Hold Shift to switch it for a single point."><svg class="i"><use href="#i-ortho"/></svg><span class="lbl">X/Y</span></button>
       <button data-tool="calib" class="t-cal" title="Two-point scale calibration (C)"><svg class="i"><use href="#i-calib"/></svg><span class="lbl lbl-opt">Calibrate</span> <kbd>C</kbd></button>
       <button data-tool="measure" title="Check a dimension (M)"><svg class="i"><use href="#i-measure"/></svg><span class="lbl lbl-opt">Check dim.</span> <kbd>M</kbd></button>
     </div>
@@ -887,8 +891,8 @@ function updateHud() {
   if (draft && draft.pts.length) {
     const pts = hoverPlace && !closeHover() ? draft.pts.concat([hoverPlace.pt]) : draft.pts;
     const a = mpu && pts.length >= 3 ? Math.abs(sArea(pts)) * mpu * mpu : null;
-    t = `${{ inc: 'Area', exc: 'Void / exclusion', unc: 'Unconditioned area', bnd: 'Building boundary' }[draft.kind]} · ${draft.pts.length} point${draft.pts.length > 1 ? 's' : ''}` + (a != null ? ` · <b>${fA(a)} m²</b>` : '') + ' · double-click, Enter or click the first point to finish';
-  } else if (tool === 'calib') t = calibPts.length === 0 ? 'Click the <b>first end</b> of a known dimension' : calibPts.length === 1 ? 'Click the <b>second end</b> · hold Shift to keep it straight' : 'Enter the real length in the Scale panel';
+    t = `${{ inc: 'Area', exc: 'Void / exclusion', unc: 'Unconditioned area', bnd: 'Building boundary' }[draft.kind]} · ${draft.pts.length} point${draft.pts.length > 1 ? 's' : ''}` + (a != null ? ` · <b>${fA(a)} m²</b>` : '') + ` · X/Y lock ${wantOrtho(lastPtrEv) ? '<b>on</b>' : 'off'}` + ' · double-click, Enter or click the first point to finish';
+  } else if (tool === 'calib') t = calibPts.length === 0 ? 'Click the <b>first end</b> of a known dimension' : calibPts.length === 1 ? `Click the <b>second end</b> · X/Y lock ${wantOrtho(lastPtrEv) ? 'on' : 'off'}` : 'Enter the real length in the Scale panel';
   else if (DRAW_TOOLS.includes(tool) && !mpu) t = 'No scale set for this page yet — you can trace now and calibrate later';
   hud.innerHTML = t; hud.hidden = !t;
   $('#zoomV').textContent = Math.round(V.z * 100) + '%';
@@ -942,12 +946,25 @@ function findSnap(s, skip) {
   if (draft) draft.pts.slice(1).forEach(q => test(q));
   return best;
 }
+let orthoOn = true;
+try { const v = localStorage.getItem('decAreaOrtho'); if (v === '0') orthoOn = false; } catch (e) {}
+const wantOrtho = e => orthoOn !== !!(e && e.shiftKey);   // Shift switches the lock for one point
+function setOrtho(on) {
+  orthoOn = !!on; try { localStorage.setItem('decAreaOrtho', orthoOn ? '1' : '0'); } catch (e) {}
+  $('#bOrtho').setAttribute('aria-pressed', String(orthoOn)); $('#hint').textContent = HINTS[tool];
+  if (hover && tool !== 'select') hoverPlace = placePoint(hover, wantOrtho(lastPtrEv), refPoint());
+  updateHud(); requestDraw();
+  toast(orthoOn ? 'X/Y lock on: lines stay horizontal or vertical. Hold Shift for a free angle.' : 'X/Y lock off: draw lines at any angle. Hold Shift to keep a line straight.');
+}
+let lastPtrEv = null;
 function placePoint(s, shift, ref, skip) {
   if (shift && ref) {
     const r = toS(ref[0], ref[1]), q = { x: s.x, y: s.y };
-    if (Math.abs(q.x - r.x) > Math.abs(q.y - r.y)) q.y = r.y; else q.x = r.x;
+    const horiz = Math.abs(q.x - r.x) > Math.abs(q.y - r.y); if (horiz) q.y = r.y; else q.x = r.x;
+    if (draft && draft.pts.length >= 2) { const f = toS(draft.pts[0][0], draft.pts[0][1]); if (horiz && Math.abs(q.x - f.x) < 10) q.x = f.x; if (!horiz && Math.abs(q.y - f.y) < 10) q.y = f.y; }   // line up with the start point so the shape closes square
+    const sn = findSnap(q, skip); if (sn) return { pt: sn.slice(), snapped: true, locked: true };
     const d = toD(q.x, q.y); if (V.a % 90 === 0) { if (Math.abs(d[0] - ref[0]) < Math.abs(d[1] - ref[1])) d[0] = ref[0]; else d[1] = ref[1]; }
-    return { pt: d, snapped: false };
+    return { pt: d, snapped: false, locked: true };
   }
   const sn = findSnap(s, skip); if (sn) return { pt: sn.slice(), snapped: true };
   return { pt: toD(s.x, s.y), snapped: false };
@@ -998,9 +1015,10 @@ cv.addEventListener('pointermove', e => {
     if (ptr.mode === 'pending' && Math.hypot(p.x - ptr.sx, p.y - ptr.sy) > 4) { ptr.mode = 'pan'; cv.style.cursor = 'grabbing'; }
     if (ptr.mode === 'pan') { V.x = ptr.vx + p.x - ptr.sx; V.y = ptr.vy + p.y - ptr.sy; afterView(); }
     else if (ptr.mode === 'vertex') { const pl = placePoint(p, false, null, { id: ptr.poly.id, i: ptr.i }); ptr.poly.pts[ptr.i] = pl.pt; ptr.moved = true; hoverPlace = pl; updateNumbers(); requestDraw(); }
-    else if (ptr.mode === 'calpt') { calibPts[ptr.i] = { pt: placePoint(p, e.shiftKey, calibPts[1 - ptr.i].pt).pt, z: V.z }; renderScale(); requestDraw(); }
+    else if (ptr.mode === 'calpt') { calibPts[ptr.i] = { pt: placePoint(p, wantOrtho(e), calibPts[1 - ptr.i].pt).pt, z: V.z }; renderScale(); requestDraw(); }
   } else {
-    hoverPlace = (tool === 'select') ? null : placePoint(p, e.shiftKey, refPoint());
+    lastPtrEv = { shiftKey: e.shiftKey };
+    hoverPlace = (tool === 'select') ? null : placePoint(p, wantOrtho(e), refPoint());
     if (tool === 'select') cv.style.cursor = hitHandles(p) ? 'move' : (hitPoly(p) ? 'pointer' : 'grab');
     requestDraw();
   }
@@ -1023,17 +1041,17 @@ function click(p, e) {
     const kind = KIND_OF[tool];
     if (!draft) draft = { kind, pts: [] };
     if (draft.pts.length >= 3) { const f = toS(...draft.pts[0]); if (Math.hypot(f.x - p.x, f.y - p.y) < 11) { finishDraft(); return; } }
-    const pl = placePoint(p, e.shiftKey, refPoint());
+    const pl = placePoint(p, wantOrtho(e), refPoint());
     if (draft.pts.length) { const l = toS(...draft.pts[draft.pts.length - 1]), q = toS(...pl.pt); if (Math.hypot(l.x - q.x, l.y - q.y) < 3) return; }
     draft.pts.push(pl.pt); requestDraw();
   } else if (tool === 'calib') {
     if (calibPts.length >= 2) calibPts = [];
-    calibPts.push({ pt: placePoint(p, e.shiftKey, refPoint()).pt, z: V.z });
+    calibPts.push({ pt: placePoint(p, wantOrtho(e), refPoint()).pt, z: V.z });
     renderScale(); requestDraw();
     if (calibPts.length === 2) { const i = $('#distIn'); if (i) i.focus(); }
   } else if (tool === 'measure') {
     if (measurePts.length >= 2) measurePts = [];
-    measurePts.push(placePoint(p, e.shiftKey, refPoint()).pt); requestDraw();
+    measurePts.push(placePoint(p, wantOrtho(e), refPoint()).pt); requestDraw();
   }
 }
 function finishDraft() {
@@ -1065,12 +1083,12 @@ function deleteSel() {
 function setCursor() { cv.style.cursor = spaceDown ? 'grab' : (tool === 'select' ? 'default' : 'crosshair'); }
 const HINTS = {
   select: 'Click an area to select it · drag square handles to move points · drag a round midpoint to add a point · Alt-click or right-click a point to remove it · drag empty space to pan · scroll to zoom',
-  poly: 'Click to add points · Shift keeps the edge horizontal or vertical · points snap to existing corners · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
+  poly: 'Click to add points · X/Y lock (O) keeps edges horizontal or vertical; hold Shift to switch it for one point · points snap to existing corners · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
   unc: 'Trace plant rooms, bin stores and other unconditioned spaces · they are listed separately and not added to or subtracted from the total · finish by clicking the first point, double-clicking or pressing Enter',
   bnd: 'Trace the outer building boundary · it is not counted in the totals; areas that spill outside it are flagged · finish by clicking the first point, double-clicking or pressing Enter',
   excl: 'Trace a courtyard, void or other area to subtract · finish by clicking the first point, double-clicking or pressing Enter · Esc cancels',
-  calib: 'Zoom in and click both ends of a dimension you know · Shift keeps the line horizontal or vertical · drag either end to adjust before applying',
-  measure: 'Click two points to check a dimension against the drawing · Shift keeps it straight'
+  calib: 'Zoom in and click both ends of a dimension you know · X/Y lock (O) keeps the line straight; hold Shift to switch it · drag either end to adjust before applying',
+  measure: 'Click two points to check a dimension against the drawing · X/Y lock (O) keeps it straight; hold Shift to switch it'
 };
 function setTool(t) {
   if (t !== tool) { if (draft && DRAW_TOOLS.includes(t)) draft.kind = KIND_OF[t]; else if (draft) draft = null; if (t !== 'calib') calibPts = []; if (t !== 'measure') measurePts = []; }
@@ -1103,6 +1121,7 @@ window.addEventListener('keydown', e => {
     case 'm': case 'M': setTool('measure'); break;
     case 'f': case 'F': fit(); break;
     case 'r': case 'R': rotate(e.shiftKey ? -1 : 1); break;
+    case 'o': case 'O': case 'F8': e.preventDefault(); setOrtho(!orthoOn); break;
     case '+': case '=': zoomAt(1.25, W / 2, H / 2); break;
     case '-': case '_': zoomAt(0.8, W / 2, H / 2); break;
     case 'Enter': if (draft) finishDraft(); else if (calibPts.length === 2) applyTwoPoint(); break;
@@ -1112,7 +1131,10 @@ window.addEventListener('keydown', e => {
     case 'PageUp': { const lp = livePages(), k = lp.indexOf(cur); if (k > 0) { e.preventDefault(); showPage(lp[k - 1]); } } break;
   }
 });
-window.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; setCursor(); } });
+window.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; setCursor(); } if (e.key === 'Shift') shiftPreview(false); });
+function shiftPreview(down) { lastPtrEv = { shiftKey: down }; if (hover && tool !== 'select' && !ptr) { hoverPlace = placePoint(hover, wantOrtho(lastPtrEv), refPoint()); updateHud(); requestDraw(); } }
+window.addEventListener('keydown', e => { if (e.key === 'Shift' && !e.repeat) shiftPreview(true); });
+$('#bOrtho').addEventListener('click', () => setOrtho(!orthoOn));
 
 /* ---------- sidebar ---------- */
 function refresh() { renderList(); renderScale(); renderDrawInfo(); updateNumbers(); updUndo(); requestDraw(); }

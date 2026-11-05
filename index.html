@@ -167,7 +167,8 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .tb kbd{display:none}
 .tb button{padding:0 10px}
 @media (max-width:2100px){.tb button{padding:0 7px;gap:5px}.tb .lbl-opt{display:none}.grp{padding:0 4px}}
-@media (max-width:1400px){.tb button{padding:0 4px;gap:4px}.grp{padding:0 2px}.zoomv{min-width:44px}}
+@media (max-width:1500px){.tb button{padding:0 4px;gap:4px}.grp{padding:0 2px}.zoomv{min-width:44px}}
+@media (max-width:1320px){#bOrtho .lbl,#bSnap .lbl{display:none}}
 .opts{grid-column:2/4;display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:6px}
 select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
 .item.unc .sw{background:rgba(109,40,217,.15);outline:1.5px dotted #6D28D9}
@@ -330,6 +331,7 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
   <symbol id="i-unc" viewBox="0 0 24 24"><path d="M4.5 4.5h15v15h-15z"/><circle cx="12" cy="12" r="4"/><path d="M12 8v8 M8 12h8"/></symbol>
   <symbol id="i-table" viewBox="0 0 24 24"><path d="M4 5h16v14H4z M4 10h16 M4 14.5h16 M10 10v9"/></symbol>
   <symbol id="i-ortho" viewBox="0 0 24 24"><path d="M5 19V5 M5 19h14 M5 5l-2 2.5 M5 5l2 2.5 M19 19l-2.5-2 M19 19l-2.5 2"/><rect x="9" y="9" width="5" height="5" rx="1"/></symbol>
+  <symbol id="i-snap" viewBox="0 0 24 24"><path d="M3 12h18 M12 3v18"/><circle cx="12" cy="12" r="4.5"/></symbol>
   <symbol id="i-swap" viewBox="0 0 24 24"><path d="M5 8.5h13l-3.5-3.5 M19 15.5H6l3.5 3.5"/></symbol>
 </svg>
 
@@ -361,6 +363,7 @@ select.mini{padding:0 4px 0 8px;max-width:170px;min-width:0;cursor:pointer}
       <button data-tool="unc" class="t-unc" title="Trace an unconditioned area such as plant or a bin store (U). Recorded separately, not added or subtracted."><svg class="i"><use href="#i-unc"/></svg><span class="lbl">Unconditioned</span> <kbd>U</kbd></button>
       <button data-tool="bnd" class="t-bnd" title="Trace the building boundary used to check other areas (B). Not counted in totals."><svg class="i"><use href="#i-bnd"/></svg><span class="lbl lbl-opt">Boundary</span> <kbd>B</kbd></button>
       <button id="bOrtho" class="t-ortho" aria-pressed="true" title="X/Y lock (O): lines stay horizontal or vertical. Turn off to draw at any angle. Hold Shift to switch it for a single point."><svg class="i"><use href="#i-ortho"/></svg><span class="lbl">X/Y</span></button>
+      <button id="bSnap" class="t-ortho" aria-pressed="true" title="Snap (N): points jump to corners you have traced, to where lines cross and to line ends on PDF drawings. Turn off to place points freely."><svg class="i"><use href="#i-snap"/></svg><span class="lbl">Snap</span></button>
       <button data-tool="calib" class="t-cal" title="Two-point scale calibration (C)"><svg class="i"><use href="#i-calib"/></svg><span class="lbl lbl-opt">Calibrate</span> <kbd>C</kbd></button>
       <button data-tool="measure" title="Check a dimension (M)"><svg class="i"><use href="#i-measure"/></svg><span class="lbl lbl-opt">Check dim.</span> <kbd>M</kbd></button>
     </div>
@@ -723,7 +726,7 @@ async function commitDrawing(f) {
       f.dpi = detectDpi(f.buf);
     }
     if (pdfDoc && pdfDoc !== doc) { try { pdfDoc.destroy(); } catch (e) {} }
-    pdfDoc = doc; imgBmp = bmp; pdfPage = null; S.pages = pages; S.file = f;
+    pdfDoc = doc; imgBmp = bmp; pdfPage = null; S.pages = pages; S.file = f; geoCache = {};
   } finally { setBusy(null); }
 }
 
@@ -735,7 +738,7 @@ async function showPage(i, keepView) {
   if (S.file.type === 'pdf') {
     setBusy(`Rendering page ${i + 1}…`);
     try {
-      pdfPage = await pdfDoc.getPage(i + 1);
+      pdfPage = await pdfDoc.getPage(i + 1); buildGeo(i).then(() => requestDraw());
       const s = Math.min(4, 8000 / Math.max(pg.w, pg.h), Math.sqrt(2.4e7 / (pg.w * pg.h)));
       const vp = pdfPage.getViewport({ scale: s }), c = document.createElement('canvas');
       c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
@@ -881,7 +884,14 @@ function drawLive() {
     const bd = measurePts[1] || (hoverPlace && hoverPlace.pt);
     if (b2 && bd) { const L = Math.hypot(bd[0] - measurePts[0][0], bd[1] - measurePts[0][1]); pill(g, (sc[0][0] + b2[0]) / 2, (sc[0][1] + b2[1]) / 2 - 14, mpu ? fL(L * mpu) : `${nf(L, 1)} ${unitName()} (no scale)`, COL.meas, 1); }
   }
-  if (hoverPlace && hoverPlace.snapped && tool !== 'select') { const q = mapS(...hoverPlace.pt); g.beginPath(); g.arc(q[0], q[1], 9, 0, Math.PI * 2); g.strokeStyle = COL.meas; g.lineWidth = 1.6; g.stroke(); }
+  if (hoverPlace && hoverPlace.snapped && (tool !== 'select' || (ptr && ptr.mode === 'vertex'))) {
+    const q = mapS(...hoverPlace.pt), k = hoverPlace.kind || 'corner'; g.save(); g.lineWidth = 1.8;
+    if (k === 'int' || k === 'online') { g.strokeStyle = '#C026D3'; g.beginPath(); g.moveTo(q[0] - 7, q[1] - 7); g.lineTo(q[0] + 7, q[1] + 7); g.moveTo(q[0] + 7, q[1] - 7); g.lineTo(q[0] - 7, q[1] + 7); g.stroke(); g.beginPath(); g.arc(q[0], q[1], 10, 0, Math.PI * 2); g.stroke(); }
+    else if (k === 'end') { g.strokeStyle = '#0369A1'; g.strokeRect(q[0] - 6, q[1] - 6, 12, 12); }
+    else { g.strokeStyle = '#059669'; g.strokeRect(q[0] - 7, q[1] - 7, 14, 14); g.fillStyle = 'rgba(5,150,105,.18)'; g.fillRect(q[0] - 7, q[1] - 7, 14, 14); }
+    g.restore();
+    pill(g, q[0] + 18 + 40, q[1] + 18, { int: 'Intersection', online: 'Line crossing', end: 'Line end', corner: 'Corner' }[k], k === 'int' || k === 'online' ? '#C026D3' : k === 'end' ? '#0369A1' : '#059669', 1);
+  }
 }
 function closeHover() { if (!draft || draft.pts.length < 3 || !hover) return false; const f = toS(...draft.pts[0]); return Math.hypot(f.x - hover.x, f.y - hover.y) < 11; }
 
@@ -939,12 +949,102 @@ document.addEventListener('click', e => { if (!e.target.closest('#angPop') && !e
 
 /* ---------- interaction ---------- */
 function evPt(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
-function findSnap(s, skip) {
+function findSnap(s, skip) { const r = snapQuery(s, skip); return r ? r.pt : null; }
+function findSnapOld(s, skip) {
   let best = null, bd = 9;
   const test = (q, tag) => { const p = toS(q[0], q[1]), d = Math.hypot(p.x - s.x, p.y - s.y); if (d < bd) { bd = d; best = q; } };
   for (const p of S.polys) { if (p.page !== cur) continue; p.pts.forEach((q, i) => { if (skip && skip.id === p.id && skip.i === i) return; test(q); }); }
   if (draft) draft.pts.slice(1).forEach(q => test(q));
   return best;
+}
+/* ---------- snapping: traced corners, line intersections and line ends ---------- */
+const SNAP_R = 10;                      // snap radius in screen pixels
+let snapOn = true;
+try { if (localStorage.getItem('decAreaSnap') === '0') snapOn = false; } catch (e) {}
+const GCELL = 12, gkey = (gx, gy) => gx * 100003 + gy;
+let geoCache = {};
+function geoFor(i) { const g = geoCache[i]; return g && !g.pending ? g : null; }
+async function buildGeo(i) {
+  if (!pdfDoc || geoCache[i]) return; const doc = pdfDoc; geoCache[i] = { pending: true };
+  try {
+    const page = await doc.getPage(i + 1), vt = page.getViewport({ scale: 1 }).transform, ol = await page.getOperatorList(), O = window.pdfjsLib.OPS;
+    if (doc !== pdfDoc) return;
+    const mul = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+    const ap = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+    const seg = [], segGrid = new Map(), endGrid = new Map(), ends = [];
+    const put = (grid, k, v) => { const a = grid.get(k); if (a) a.push(v); else grid.set(k, [v]); };
+    const addEnd = q => { const k = gkey(Math.floor(q[0] / GCELL), Math.floor(q[1] / GCELL)); ends.push(q[0], q[1]); put(endGrid, k, ends.length / 2 - 1); };
+    const addSeg = (a, b) => {
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!(L > 0.3) || seg.length > 1.6e6) return;
+      const id = seg.length / 4; seg.push(a[0], a[1], b[0], b[1]); addEnd(a); addEnd(b);
+      const n = Math.ceil(L / (GCELL / 2)); let last = null;
+      for (let t = 0; t <= n; t++) { const x = a[0] + (b[0] - a[0]) * t / n, y = a[1] + (b[1] - a[1]) * t / n, k = gkey(Math.floor(x / GCELL), Math.floor(y / GCELL)); if (k !== last) { put(segGrid, k, id); last = k; } }
+    };
+    let ctm = vt.slice(); const stack = []; let cx = 0, cy = 0, sx = 0, sy = 0;
+    for (let k = 0; k < ol.fnArray.length; k++) {
+      const fn = ol.fnArray[k], a = ol.argsArray[k];
+      if (fn === O.save) stack.push(ctm);
+      else if (fn === O.restore) ctm = stack.pop() || ctm;
+      else if (fn === O.transform) ctm = mul(ctm, a);
+      else if (fn === O.paintFormXObjectBegin) { stack.push(ctm); if (a && a[0]) ctm = mul(ctm, a[0]); }
+      else if (fn === O.paintFormXObjectEnd) ctm = stack.pop() || ctm;
+      else if (fn === O.constructPath) {
+        const ops = a[0], c = a[1]; let j = 0;
+        for (let q = 0; q < ops.length; q++) switch (ops[q] | 0) {
+          case O.rectangle: { const x = c[j++], y = c[j++], w = c[j++], h = c[j++], P = [ap(ctm, x, y), ap(ctm, x + w, y), ap(ctm, x + w, y + h), ap(ctm, x, y + h)]; for (let t = 0; t < 4; t++) addSeg(P[t], P[(t + 1) % 4]); cx = sx = x; cy = sy = y; break; }
+          case O.moveTo: cx = sx = c[j++]; cy = sy = c[j++]; break;
+          case O.lineTo: { const x = c[j++], y = c[j++]; addSeg(ap(ctm, cx, cy), ap(ctm, x, y)); cx = x; cy = y; break; }
+          case O.curveTo: addEnd(ap(ctm, cx, cy)); cx = c[j + 4]; cy = c[j + 5]; addEnd(ap(ctm, cx, cy)); j += 6; break;
+          case O.curveTo2: case O.curveTo3: addEnd(ap(ctm, cx, cy)); cx = c[j + 2]; cy = c[j + 3]; addEnd(ap(ctm, cx, cy)); j += 4; break;
+          case O.closePath: addSeg(ap(ctm, cx, cy), ap(ctm, sx, sy)); cx = sx; cy = sy; break;
+        }
+      }
+    }
+    geoCache[i] = { seg, segGrid, ends, endGrid, n: seg.length / 4 };
+  } catch (err) { console.warn('Could not read drawing lines for snapping', err); geoCache[i] = { seg: [], segGrid: new Map(), ends: [], endGrid: new Map(), n: 0 }; }
+}
+function nearSegs(d, rD, skip) {
+  const out = [], g = geoFor(cur);
+  if (g) { const seen = new Set(), x0 = Math.floor((d[0] - rD) / GCELL), x1 = Math.floor((d[0] + rD) / GCELL), y0 = Math.floor((d[1] - rD) / GCELL), y1 = Math.floor((d[1] + rD) / GCELL);
+    for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) { const a = g.segGrid.get(gkey(gx, gy)); if (a) for (const id of a) if (!seen.has(id)) { seen.add(id); out.push([g.seg[id * 4], g.seg[id * 4 + 1], g.seg[id * 4 + 2], g.seg[id * 4 + 3]]); } } }
+  const near = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy; let t = L ? ((d[0] - a[0]) * dx + (d[1] - a[1]) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(d[0] - a[0] - t * dx, d[1] - a[1] - t * dy) <= rD * 2; };
+  for (const p of S.polys) { if (p.page !== cur) continue; const n = p.pts.length; for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (skip && skip.id === p.id && (skip.i === i || skip.i === j)) continue; if (near(p.pts[i], p.pts[j])) out.push([p.pts[i][0], p.pts[i][1], p.pts[j][0], p.pts[j][1]]); } }
+  if (draft) for (let i = 0; i + 1 < draft.pts.length; i++) if (near(draft.pts[i], draft.pts[i + 1])) out.push([draft.pts[i][0], draft.pts[i][1], draft.pts[i + 1][0], draft.pts[i + 1][1]]);
+  if (out.length > 90) { const dist = s4 => { const dx = s4[2] - s4[0], dy = s4[3] - s4[1], L = dx * dx + dy * dy; let t = L ? ((d[0] - s4[0]) * dx + (d[1] - s4[1]) * dy) / L : 0; t = Math.max(0, Math.min(1, t)); return Math.hypot(d[0] - s4[0] - t * dx, d[1] - s4[1] - t * dy); }; out.sort((a, b) => dist(a) - dist(b)); out.length = 90; }
+  return out;
+}
+function xSeg(A, B) {   // intersection of two segments, or null
+  const r0 = A[2] - A[0], r1 = A[3] - A[1], s0 = B[2] - B[0], s1 = B[3] - B[1], den = r0 * s1 - r1 * s0;
+  if (Math.abs(den) < 1e-9 * Math.hypot(r0, r1) * Math.hypot(s0, s1) + 1e-12) return null;
+  const qx = B[0] - A[0], qy = B[1] - A[1], t = (qx * s1 - qy * s0) / den, u = (qx * r1 - qy * r0) / den, e = 1e-6;
+  return (t >= -e && t <= 1 + e && u >= -e && u <= 1 + e) ? [A[0] + t * r0, A[1] + t * r1] : null;
+}
+function xLine(P, dir, B) {   // intersection of an infinite line (point + direction) with a segment
+  const s0 = B[2] - B[0], s1 = B[3] - B[1], den = dir[0] * s1 - dir[1] * s0; if (Math.abs(den) < 1e-9 * Math.hypot(s0, s1)) return null;
+  const qx = B[0] - P[0], qy = B[1] - P[1], u = (qx * dir[1] - qy * dir[0]) / den; if (u < -1e-6 || u > 1 + 1e-6) return null;
+  return [B[0] + u * s0, B[1] + u * s1];
+}
+function snapQuery(s, skip, line) {
+  if (!snapOn) return null;
+  let best = null, bs = Infinity;
+  const consider = (pt, kind, bonus) => { const p = toS(pt[0], pt[1]), dist = Math.hypot(p.x - s.x, p.y - s.y); if (dist > SNAP_R) return; const sc = dist - bonus; if (sc < bs) { bs = sc; best = { pt: [pt[0], pt[1]], kind }; } };
+  for (const p of S.polys) { if (p.page !== cur) continue; p.pts.forEach((q, i) => { if (skip && skip.id === p.id && skip.i === i) return; consider(q, 'corner', 4); }); }
+  if (draft) draft.pts.slice(1).forEach(q => consider(q, 'corner', 4));
+  if (line && line.cornersOnly) return best;
+  const rD = SNAP_R / V.z, d = toD(s.x, s.y), segs = nearSegs(d, rD, skip);
+  if (line) { for (const B of segs) { const x = xLine(line.p, line.dir, B); if (x) consider(x, 'online', 1.5); } return best; }
+  for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) { const x = xSeg(segs[i], segs[j]); if (x) consider(x, 'int', 1.5); }
+  const g = geoFor(cur);
+  if (g) { const x0 = Math.floor((d[0] - rD) / GCELL), x1 = Math.floor((d[0] + rD) / GCELL), y0 = Math.floor((d[1] - rD) / GCELL), y1 = Math.floor((d[1] + rD) / GCELL);
+    for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) { const a = g.endGrid.get(gkey(gx, gy)); if (a) for (const id of a) consider([g.ends[id * 2], g.ends[id * 2 + 1]], 'end', 0); } }
+  return best;
+}
+function setSnap(on) {
+  snapOn = !!on; try { localStorage.setItem('decAreaSnap', snapOn ? '1' : '0'); } catch (e) {}
+  $('#bSnap').setAttribute('aria-pressed', String(snapOn));
+  if (hover && tool !== 'select') hoverPlace = placePoint(hover, wantOrtho(lastPtrEv), refPoint());
+  requestDraw();
+  toast(snapOn ? (S.file && S.file.type !== 'pdf' ? 'Snap on: points jump to your traced corners and to where traced lines cross. Image files have no line data, so drawing intersections need a PDF.' : 'Snap on: points jump to corners, line intersections and line ends.') : 'Snap off: points go exactly where you click.');
 }
 let orthoOn = true;
 try { const v = localStorage.getItem('decAreaOrtho'); if (v === '0') orthoOn = false; } catch (e) {}
@@ -961,12 +1061,13 @@ function placePoint(s, shift, ref, skip) {
   if (shift && ref) {
     const r = toS(ref[0], ref[1]), q = { x: s.x, y: s.y };
     const horiz = Math.abs(q.x - r.x) > Math.abs(q.y - r.y); if (horiz) q.y = r.y; else q.x = r.x;
-    if (draft && draft.pts.length >= 2) { const f = toS(draft.pts[0][0], draft.pts[0][1]); if (horiz && Math.abs(q.x - f.x) < 10) q.x = f.x; if (!horiz && Math.abs(q.y - f.y) < 10) q.y = f.y; }   // line up with the start point so the shape closes square
-    const sn = findSnap(q, skip); if (sn) return { pt: sn.slice(), snapped: true, locked: true };
+    let aligned = false; if (draft && draft.pts.length >= 2) { const f = toS(draft.pts[0][0], draft.pts[0][1]); if (horiz && Math.abs(q.x - f.x) < 10) { q.x = f.x; aligned = true; } if (!horiz && Math.abs(q.y - f.y) < 10) { q.y = f.y; aligned = true; } }   // line up with the start point so the shape closes square
+    const o0 = toD(0, 0), o1 = toD(horiz ? 1 : 0, horiz ? 0 : 1), dir = [o1[0] - o0[0], o1[1] - o0[1]];
+    const sn = snapQuery(q, skip, { p: ref, dir, cornersOnly: aligned }); if (sn) return { pt: sn.pt, snapped: true, kind: sn.kind, locked: true };
     const d = toD(q.x, q.y); if (V.a % 90 === 0) { if (Math.abs(d[0] - ref[0]) < Math.abs(d[1] - ref[1])) d[0] = ref[0]; else d[1] = ref[1]; }
     return { pt: d, snapped: false, locked: true };
   }
-  const sn = findSnap(s, skip); if (sn) return { pt: sn.slice(), snapped: true };
+  const sn = snapQuery(s, skip); if (sn) return { pt: sn.pt, snapped: true, kind: sn.kind };
   return { pt: toD(s.x, s.y), snapped: false };
 }
 function refPoint() { if (draft && draft.pts.length) return draft.pts[draft.pts.length - 1]; if (tool === 'calib' && calibPts.length === 1) return calibPts[0].pt; if (tool === 'measure' && measurePts.length === 1) return measurePts[0]; return null; }
@@ -1083,7 +1184,7 @@ function deleteSel() {
 function setCursor() { cv.style.cursor = spaceDown ? 'grab' : (tool === 'select' ? 'default' : 'crosshair'); }
 const HINTS = {
   select: 'Click an area to select it · drag square handles to move points · drag a round midpoint to add a point · Alt-click or right-click a point to remove it · drag empty space to pan · scroll to zoom',
-  poly: 'Click to add points · X/Y lock (O) keeps edges horizontal or vertical; hold Shift to switch it for one point · points snap to existing corners · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
+  poly: 'Click to add points · X/Y lock (O) keeps edges horizontal or vertical; hold Shift to switch it for one point · Snap (N) jumps to corners, line intersections and line ends · finish by clicking the first point, double-clicking or pressing Enter · Backspace removes the last point · Esc cancels',
   unc: 'Trace plant rooms, bin stores and other unconditioned spaces · they are listed separately and not added to or subtracted from the total · finish by clicking the first point, double-clicking or pressing Enter',
   bnd: 'Trace the outer building boundary · it is not counted in the totals; areas that spill outside it are flagged · finish by clicking the first point, double-clicking or pressing Enter',
   excl: 'Trace a courtyard, void or other area to subtract · finish by clicking the first point, double-clicking or pressing Enter · Esc cancels',
@@ -1122,6 +1223,7 @@ window.addEventListener('keydown', e => {
     case 'f': case 'F': fit(); break;
     case 'r': case 'R': rotate(e.shiftKey ? -1 : 1); break;
     case 'o': case 'O': case 'F8': e.preventDefault(); setOrtho(!orthoOn); break;
+    case 'n': case 'N': case 'F3': e.preventDefault(); setSnap(!snapOn); break;
     case '+': case '=': zoomAt(1.25, W / 2, H / 2); break;
     case '-': case '_': zoomAt(0.8, W / 2, H / 2); break;
     case 'Enter': if (draft) finishDraft(); else if (calibPts.length === 2) applyTwoPoint(); break;
@@ -1135,6 +1237,8 @@ window.addEventListener('keyup', e => { if (e.key === ' ') { spaceDown = false; 
 function shiftPreview(down) { lastPtrEv = { shiftKey: down }; if (hover && tool !== 'select' && !ptr) { hoverPlace = placePoint(hover, wantOrtho(lastPtrEv), refPoint()); updateHud(); requestDraw(); } }
 window.addEventListener('keydown', e => { if (e.key === 'Shift' && !e.repeat) shiftPreview(true); });
 $('#bOrtho').addEventListener('click', () => setOrtho(!orthoOn));
+$('#bSnap').addEventListener('click', () => setSnap(!snapOn));
+$('#bSnap').setAttribute('aria-pressed', String(snapOn));
 
 /* ---------- sidebar ---------- */
 function refresh() { renderList(); renderScale(); renderDrawInfo(); updateNumbers(); updUndo(); requestDraw(); }
